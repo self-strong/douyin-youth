@@ -7,17 +7,19 @@ import (
 	"gorm.io/gorm"
 )
 
+// 用户
 type User struct {
-	Id          int64  `gorm:"primary_key;AUTO_INCREMENT"`
-	Name        string `gorm:"unique_index:UserName;not null;unique"`
+	Id          int64  `gorm:"primary_key;AUTO_INCREMENT"`            //用户id，设置为primary_key主键，AUTO_INCREMENT自增
+	Name        string `gorm:"unique_index:UserName;not null;unique"` //设置为唯一索引
 	Password    string `gorm:"type:varchar(64);not null"`
-	Followcount int64  `gorm:"default:0"`
-	Fancount    int64  `gorm:"default:0"`
+	FollowCount int64  `gorm:"default:0"` // 默认为0
+	FanCount    int64  `gorm:"default:0"`
 }
 
+// 视频
 type Video struct {
 	Id           int64  `gorm:"primary_key;AUTO_INCREMENT"`
-	Title        string `gorm:"index:VdeioTitle;not null"`
+	Title        string `gorm:"index:VdeioTitle;not null"` //设置为普通索引
 	CreateUid    int64  `gorm:"not null"`
 	Timestamp    string `gorm:"not null"`
 	PlayUrl      string `gorm:"not null"`
@@ -26,20 +28,23 @@ type Video struct {
 	CommentCount int64  `gorm:"default:0"`
 }
 
+// 点赞
 type Thumb struct {
-	Uid       int64  `gorm:"not null"`
-	Vid       int64  `gorm:"not null"`
+	Uid       int64  `gorm:"index:Uid;not null"`
+	Vid       int64  `gorm:"index:Vid;not null"`
 	Timestamp string `gorm:"not null"`
 }
 
+// 关注
 type Following struct {
-	FansId int64 `gorm:"index:FansId;not null"`
-	IdolId int64 `gorm:"index:IdolId;not null"`
+	FansId int64 `gorm:"index:FansId;not null"` //粉丝数，设置为普通索引
+	IdolId int64 `gorm:"index:IdolId;not null"` //关注数，设置为普通索引
 }
 
+// 评论
 type Comment struct {
-	CmId      int64  `gorm:"primary_key;AUTO_INCREMENT"`
-	Vid       int64  `gorm:"not null"`
+	CmId      int64  `gorm:"primary_key;AUTO_INCREMENT"` //评论id，设置为primary_key主键，AUTO_INCREMENT自增
+	Vid       int64  `gorm:"index:Vid;not null"`         //粉丝数，设置为普通索引
 	Uid       int64  `gorm:"not null"`
 	Content   string `gorm:"not null"`
 	Timestamp string `gorm:"not null"`
@@ -59,7 +64,7 @@ func main() {
 		return
 	}
 
-	// 迁移 schema
+	// 自动迁移创建表格
 	err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
 
 	if err != nil {
