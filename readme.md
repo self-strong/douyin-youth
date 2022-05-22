@@ -1,1 +1,1 @@
-This is new 
+使用GORM框架，创建数据库。
