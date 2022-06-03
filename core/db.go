@@ -177,17 +177,43 @@ func DbConnect() error {
 }
 
 // DbFavoriteAction Thumb Up
-func DbFavoriteAction(uId int64, vId int64) *gorm.DB {
+func DbFavoriteAction(uId int64, vId int64) error {
+	tx := db.Begin()
 	thumbInfo := DbThumb{Uid: uId, Vid: vId, Timestamp: time.Now().String()}
-	result := db.Create(&thumbInfo)
-	return result
+	result := tx.Create(&thumbInfo)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count + ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }
 
 // DbUnFavoriteAction Cancel Thumb Up
-func DbUnFavoriteAction(uId int64, vId int64) *gorm.DB {
+func DbUnFavoriteAction(uId int64, vId int64) error {
+	tx := db.Begin()
 	thumbInfo := DbThumb{Uid: uId, Vid: vId}
-	result := db.Delete(&thumbInfo)
-	return result
+	result := tx.Delete(&thumbInfo)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count - ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }
 
 // DbFavoriteList Fetch List
@@ -229,12 +255,22 @@ func DbFavoriteList(uId int64) []Video {
 }
 
 // DbPostComment by vID and content
-func DbPostComment(uId int64, vId int64, text string) (*gorm.DB, Comment) {
+func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
+	tx := db.Begin()
 	comment := DbComment{Uid: uId, Vid: vId, Content: text, Timestamp: time.Now().String()}
-	result := db.Create(&comment)
+	result := tx.Create(&comment)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error, Comment{}
+	}
 
 	var user DbUser
-	db.First(&user, uId)
+	result = tx.First(&user, uId)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error, Comment{}
+	}
+
 	returnComment := Comment{
 		CmId: comment.CmId,
 		User: User{
@@ -247,14 +283,26 @@ func DbPostComment(uId int64, vId int64, text string) (*gorm.DB, Comment) {
 		Content:    text,
 		CreateDate: comment.Timestamp,
 	}
-	return result, returnComment
+	return tx.Commit().Error, returnComment
 }
 
 // DbDeleteComment by cmId
-func DbDeleteComment(cmId int64) *gorm.DB {
+func DbDeleteComment(cmId int64, vId int64) error {
+	tx := db.Begin()
 	comment := DbComment{CmId: cmId}
-	result := db.Delete(&comment)
-	return result
+	if result := tx.Delete(&comment).Error; result != nil {
+		tx.Rollback()
+		return result
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result := tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count - ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }
 
 // DbCommentList by vId
@@ -290,4 +338,28 @@ func DbCommentList(uId int64, vId int64) []Comment {
 	}
 
 	return comments
+}
+
+// DbFollowAction uId -> toID
+func DbFollowAction(uId int64, toId int64) *gorm.DB {
+	relation := DbFollowing{
+		FansId: uId,
+		IdolId: toId,
+	}
+	result := db.Create(&relation)
+	return result
+}
+
+// DbUnFollowAction uID -> toId
+func DbUnFollowAction(uId int64, toId int64) *gorm.DB {
+	relation := DbFollowing{
+		FansId: uId,
+		IdolId: toId,
+	}
+	result := db.Delete(&relation)
+	return result
+}
+
+func DbFollowList(uId int64) []User {
+	return []User{}
 }

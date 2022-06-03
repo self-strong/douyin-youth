@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"net/http"
 	"strconv"
 )
@@ -39,7 +38,7 @@ func CommentAction(c *gin.Context) {
 		return
 	}
 
-	var result *gorm.DB
+	var result error
 	vID, _ := strconv.ParseInt(videoId, 10, 64)
 	if actionType == "1" {
 		content := c.Query("comment_text")
@@ -52,7 +51,7 @@ func CommentAction(c *gin.Context) {
 		}
 		var comment Comment
 		result, comment = DbPostComment(userLoginInfo.Id, vID, content)
-		if result.Error == nil {
+		if result == nil {
 			c.JSON(http.StatusOK, CommentResponse{
 				Response: Response{StatusCode: 0, StatusMsg: "Comment successfully"},
 				Comment:  comment,
@@ -69,8 +68,8 @@ func CommentAction(c *gin.Context) {
 			return
 		}
 		cmIdInt, _ := strconv.ParseInt(cmId, 10, 64)
-		result = DbDeleteComment(cmIdInt)
-		if result.Error == nil {
+		result = DbDeleteComment(cmIdInt, vID)
+		if result == nil {
 			c.JSON(http.StatusOK, CommentResponse{
 				Response: Response{StatusCode: 0, StatusMsg: "Remove comment successfully"},
 				Comment:  Comment{},
@@ -85,7 +84,7 @@ func CommentAction(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: result.Error.Error()})
+	c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: result.Error()})
 	return
 }
 

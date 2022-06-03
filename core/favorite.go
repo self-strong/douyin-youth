@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"net/http"
 	"strconv"
 )
@@ -25,7 +24,7 @@ func FavoriteAction(c *gin.Context) {
 	}
 
 	vId, _ := strconv.ParseInt(videoId, 10, 64)
-	var result *gorm.DB
+	var result error
 	if actionType == "1" {
 		result = DbFavoriteAction(userLoginInfo.Id, vId)
 	} else if actionType == "2" {
@@ -35,8 +34,8 @@ func FavoriteAction(c *gin.Context) {
 		return
 	}
 
-	if result.Error != nil {
-		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: result.Error.Error()})
+	if result != nil {
+		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: result.Error()})
 		return
 	}
 
