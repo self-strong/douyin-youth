@@ -187,7 +187,7 @@ func DbFavoriteAction(uId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("ThumbCount + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -207,7 +207,7 @@ func DbUnFavoriteAction(uId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count - ?", 1))
+	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("ThumbCount - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -264,6 +264,13 @@ func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
 		return result.Error, Comment{}
 	}
 
+	dbVideo := DbVideo{Id: vId}
+	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("CommentCount + ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error, Comment{}
+	}
+
 	var user DbUser
 	result = tx.First(&user, uId)
 	if result.Error != nil {
@@ -296,7 +303,7 @@ func DbDeleteComment(cmId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result := tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count - ?", 1))
+	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("CommentCount - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -341,25 +348,110 @@ func DbCommentList(uId int64, vId int64) []Comment {
 }
 
 // DbFollowAction uId -> toID
-func DbFollowAction(uId int64, toId int64) *gorm.DB {
+func DbFollowAction(uId int64, toId int64) error {
+	tx := db.Begin()
 	relation := DbFollowing{
 		FansId: uId,
 		IdolId: toId,
 	}
-	result := db.Create(&relation)
-	return result
+	if err := tx.Create(&relation).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	target := DbUser{Id: toId}
+	if err := tx.Model(&target).Update("FanCount", gorm.Expr("FanCount + ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	self := DbUser{Id: uId}
+	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("FollowCount + ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 // DbUnFollowAction uID -> toId
-func DbUnFollowAction(uId int64, toId int64) *gorm.DB {
+func DbUnFollowAction(uId int64, toId int64) error {
+	tx := db.Begin()
 	relation := DbFollowing{
 		FansId: uId,
 		IdolId: toId,
 	}
-	result := db.Delete(&relation)
-	return result
+	if err := tx.Delete(&relation).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	target := DbUser{Id: toId}
+	if err := tx.Model(&target).Update("FanCount", gorm.Expr("FanCount - ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	self := DbUser{Id: uId}
+	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("FollowCount - ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
-func DbFollowList(uId int64) []User {
-	return []User{}
+// DbFollowList get uId follows whom
+func DbFollowList(uId int64, opId int64) []User {
+	var dbUsers []DbFollowing
+	result := db.Where("FansId = ?", uId).Find(&dbUsers)
+
+	if result.RowsAffected == 0 {
+		return nil
+	}
+
+	followList := make([]User, len(dbUsers))
+	for i := 0; i < len(dbUsers); i++ {
+		var dbUser DbUser
+		db.First(&dbUser, dbUsers[i].IdolId)
+
+		var followTestRelation DbFollowing
+		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].IdolId}).First(&followTestRelation)
+		followList[i] = User{
+			Uid:       dbUser.Id,
+			Username:  dbUser.Name,
+			Follow:    dbUser.FanCount,
+			Following: dbUser.FollowCount,
+			Is_follow: followTest.RowsAffected > 0,
+		}
+	}
+
+	return followList
+}
+
+func DbFollowerList(uId int64, opId int64) []User {
+	var dbUsers []DbFollowing
+	result := db.Where("IdolId = ?", uId).Find(&dbUsers)
+
+	if result.RowsAffected == 0 {
+		return nil
+	}
+
+	followerList := make([]User, len(dbUsers))
+	for i := 0; i < len(dbUsers); i++ {
+		var dbUser DbUser
+		db.First(&dbUser, dbUsers[i].FansId)
+
+		var followTestRelation DbFollowing
+		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].FansId}).First(&followTestRelation)
+		followerList[i] = User{
+			Uid:       dbUser.Id,
+			Username:  dbUser.Name,
+			Follow:    dbUser.FanCount,
+			Following: dbUser.FollowCount,
+			Is_follow: followTest.RowsAffected > 0,
+		}
+	}
+
+	return followerList
 }

@@ -96,7 +96,7 @@ func CommentList(c *gin.Context) {
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, CommentListResponse{
 			Response:    Response{StatusCode: 1, StatusMsg: "User not Logged in or Not Exist"},
-			CommentList: []Comment{},
+			CommentList: nil,
 		})
 		return
 	}
@@ -105,7 +105,7 @@ func CommentList(c *gin.Context) {
 	if videoId == "" {
 		c.JSON(http.StatusOK, CommentListResponse{
 			Response:    Response{StatusCode: 1, StatusMsg: "Missing Parameter"},
-			CommentList: []Comment{},
+			CommentList: nil,
 		})
 		return
 	}
