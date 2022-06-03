@@ -39,6 +39,7 @@ type DbVideo struct {
 	ThumbCount   int64  `json:"thumb_count" gorm:"default:0"`
 	CommentCount int64  `json:"comment_count" gorm:"default:0"`
 }
+
 func (*DbVideo) TableName() string {
 	return "videos"
 }
@@ -72,6 +73,7 @@ type DbComment struct {
 	Content   string `gorm:"not null"`
 	Timestamp string `gorm:"not null"`
 }
+
 func (*DbComment) TableName() string {
 	return "comments"
 }
@@ -101,7 +103,7 @@ var LoginInfo = map[string]UserLoginInfo{
 // 根据Token获取登录用户的信息
 func DbFindUserLoginInfo(token string) *UserLoginInfo {
 	// 在数据库表中查询登录用户的TOKEN
-	userLoginInfo , ok := LoginInfo[token]
+	userLoginInfo, ok := LoginInfo[token]
 	if ok { // 存在
 		return &userLoginInfo
 	}
@@ -118,7 +120,7 @@ func DbFindVideoList(user *User) []Video {
 
 	videos := make([]Video, len(dbVideos))
 	for i := 0; i < len(dbVideos); i++ {
-		var vdo Video;
+		var vdo Video
 		vdo.User = *user
 		// 恢复Title的原名
 		vdo.Title = dbVideos[i].Title
@@ -172,4 +174,120 @@ func DbConnect() error {
 	return nil
 	// 自动迁移创建表格
 	// err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
+}
+
+// DbFavoriteAction Thumb Up
+func DbFavoriteAction(uId int64, vId int64) *gorm.DB {
+	thumbInfo := DbThumb{Uid: uId, Vid: vId, Timestamp: time.Now().String()}
+	result := db.Create(&thumbInfo)
+	return result
+}
+
+// DbUnFavoriteAction Cancel Thumb Up
+func DbUnFavoriteAction(uId int64, vId int64) *gorm.DB {
+	thumbInfo := DbThumb{Uid: uId, Vid: vId}
+	result := db.Delete(&thumbInfo)
+	return result
+}
+
+// DbFavoriteList Fetch List
+func DbFavoriteList(uId int64) []Video {
+	var dbThumbs []DbThumb
+	db.Where("Uid = ?", uId).Find(&dbThumbs)
+	if dbThumbs == nil {
+		return nil
+	}
+
+	favoriteVideos := make([]Video, len(dbThumbs))
+	for i := 0; i < len(dbThumbs); i++ {
+		var dbVideo DbVideo
+		db.First(&dbVideo, dbThumbs[i].Vid)
+
+		favoriteVideos[i].Id = dbVideo.Id
+		favoriteVideos[i].Title = dbVideo.Title
+		favoriteVideos[i].PlayUrl = dbVideo.PlayUrl
+		favoriteVideos[i].CoverUrl = dbVideo.CoverUrl
+		favoriteVideos[i].CommentCount = dbVideo.CommentCount
+		favoriteVideos[i].ThumbCount = dbVideo.ThumbCount
+
+		var author DbUser
+		db.First(&author, dbVideo.CreateUid)
+
+		var relation DbFollowing
+		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+
+		favoriteVideos[i].User = User{
+			Uid:       author.Id,
+			Username:  author.Name,
+			Follow:    author.FanCount,
+			Following: author.FollowCount,
+			Is_follow: following.RowsAffected > 0,
+		}
+	}
+
+	return favoriteVideos
+}
+
+// DbPostComment by vID and content
+func DbPostComment(uId int64, vId int64, text string) (*gorm.DB, Comment) {
+	comment := DbComment{Uid: uId, Vid: vId, Content: text, Timestamp: time.Now().String()}
+	result := db.Create(&comment)
+
+	var user DbUser
+	db.First(&user, uId)
+	returnComment := Comment{
+		CmId: comment.CmId,
+		User: User{
+			Uid:       user.Id,
+			Username:  user.Name,
+			Follow:    user.FanCount,
+			Following: user.FollowCount,
+			Is_follow: true,
+		},
+		Content:    text,
+		CreateDate: comment.Timestamp,
+	}
+	return result, returnComment
+}
+
+// DbDeleteComment by cmId
+func DbDeleteComment(cmId int64) *gorm.DB {
+	comment := DbComment{CmId: cmId}
+	result := db.Delete(&comment)
+	return result
+}
+
+// DbCommentList by vId
+func DbCommentList(uId int64, vId int64) []Comment {
+	var dbComments []DbComment
+	db.Where("Vid = ?", vId).Find(&dbComments)
+	if dbComments == nil {
+		return nil
+	}
+
+	comments := make([]Comment, len(dbComments))
+	for i := 0; i < len(dbComments); i++ {
+		var author DbUser
+		db.First(&author, dbComments[i].Uid)
+
+		var relation DbFollowing
+		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+
+		user := User{
+			Uid:       author.Id,
+			Username:  author.Name,
+			Follow:    author.FanCount,
+			Following: author.FollowCount,
+			Is_follow: following.RowsAffected > 0,
+		}
+
+		comments[i] = Comment{
+			CmId:       dbComments[i].CmId,
+			User:       user,
+			Content:    dbComments[i].Content,
+			CreateDate: dbComments[i].Timestamp,
+		}
+	}
+
+	return comments
 }

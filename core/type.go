@@ -2,7 +2,6 @@ package core
 
 // core 中共用的类型部分
 
-
 // response
 type Response struct {
 	StatusCode int32  `json:"status_code"`
@@ -28,4 +27,11 @@ type Video struct {
 	CommentCount int64  `json:"comment_count"`
 	Is_favorite  bool   `json:"is_favorite"`
 	Title        string `json:"title"`
+}
+
+type Comment struct {
+	CmId       int64  `json:"id"`
+	User       User   `json:"user"`
+	Content    string `json:"content"`
+	CreateDate string `json:"create_date"`
 }
