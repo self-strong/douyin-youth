@@ -27,10 +27,14 @@ func main() {
 	apiRouter.POST("/publish/action/", core.PublishAction)
 	apiRouter.GET("/publish/list/", core.PublishList)
 
-	apiRouter.POST("/favorite/action", core.FavoriteAction)
-	apiRouter.GET("/favorite/list", core.FavoriteList)
-	apiRouter.POST("/comment/action", core.CommentAction)
-	apiRouter.GET("/comment/list", core.CommentList)
+	apiRouter.POST("/favorite/action/", core.FavoriteAction)
+	apiRouter.GET("/favorite/list/", core.FavoriteList)
+	apiRouter.POST("/comment/action/", core.CommentAction)
+	apiRouter.GET("/comment/list/", core.CommentList)
+
+	apiRouter.POST("/relation/action/", core.RelationAction)
+	apiRouter.GET("/relation/follow/list/", core.FollowList)
+	apiRouter.GET("/relation/follower/list/", core.FollowerList)
 
 	r.Run()
 }

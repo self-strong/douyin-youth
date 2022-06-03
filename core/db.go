@@ -177,17 +177,43 @@ func DbConnect() error {
 }
 
 // DbFavoriteAction Thumb Up
-func DbFavoriteAction(uId int64, vId int64) *gorm.DB {
+func DbFavoriteAction(uId int64, vId int64) error {
+	tx := db.Begin()
 	thumbInfo := DbThumb{Uid: uId, Vid: vId, Timestamp: time.Now().String()}
-	result := db.Create(&thumbInfo)
-	return result
+	result := tx.Create(&thumbInfo)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("ThumbCount + ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }
 
 // DbUnFavoriteAction Cancel Thumb Up
-func DbUnFavoriteAction(uId int64, vId int64) *gorm.DB {
+func DbUnFavoriteAction(uId int64, vId int64) error {
+	tx := db.Begin()
 	thumbInfo := DbThumb{Uid: uId, Vid: vId}
-	result := db.Delete(&thumbInfo)
-	return result
+	result := tx.Delete(&thumbInfo)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("ThumbCount - ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }
 
 // DbFavoriteList Fetch List
@@ -229,12 +255,29 @@ func DbFavoriteList(uId int64) []Video {
 }
 
 // DbPostComment by vID and content
-func DbPostComment(uId int64, vId int64, text string) (*gorm.DB, Comment) {
+func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
+	tx := db.Begin()
 	comment := DbComment{Uid: uId, Vid: vId, Content: text, Timestamp: time.Now().String()}
-	result := db.Create(&comment)
+	result := tx.Create(&comment)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error, Comment{}
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("CommentCount + ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error, Comment{}
+	}
 
 	var user DbUser
-	db.First(&user, uId)
+	result = tx.First(&user, uId)
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error, Comment{}
+	}
+
 	returnComment := Comment{
 		CmId: comment.CmId,
 		User: User{
@@ -247,14 +290,26 @@ func DbPostComment(uId int64, vId int64, text string) (*gorm.DB, Comment) {
 		Content:    text,
 		CreateDate: comment.Timestamp,
 	}
-	return result, returnComment
+	return tx.Commit().Error, returnComment
 }
 
 // DbDeleteComment by cmId
-func DbDeleteComment(cmId int64) *gorm.DB {
+func DbDeleteComment(cmId int64, vId int64) error {
+	tx := db.Begin()
 	comment := DbComment{CmId: cmId}
-	result := db.Delete(&comment)
-	return result
+	if result := tx.Delete(&comment).Error; result != nil {
+		tx.Rollback()
+		return result
+	}
+
+	dbVideo := DbVideo{Id: vId}
+	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("CommentCount - ?", 1))
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
+
+	return tx.Commit().Error
 }
 
 // DbCommentList by vId
@@ -290,4 +345,113 @@ func DbCommentList(uId int64, vId int64) []Comment {
 	}
 
 	return comments
+}
+
+// DbFollowAction uId -> toID
+func DbFollowAction(uId int64, toId int64) error {
+	tx := db.Begin()
+	relation := DbFollowing{
+		FansId: uId,
+		IdolId: toId,
+	}
+	if err := tx.Create(&relation).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	target := DbUser{Id: toId}
+	if err := tx.Model(&target).Update("FanCount", gorm.Expr("FanCount + ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	self := DbUser{Id: uId}
+	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("FollowCount + ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+// DbUnFollowAction uID -> toId
+func DbUnFollowAction(uId int64, toId int64) error {
+	tx := db.Begin()
+	relation := DbFollowing{
+		FansId: uId,
+		IdolId: toId,
+	}
+	if err := tx.Delete(&relation).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	target := DbUser{Id: toId}
+	if err := tx.Model(&target).Update("FanCount", gorm.Expr("FanCount - ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	self := DbUser{Id: uId}
+	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("FollowCount - ?", 1)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+// DbFollowList get uId follows whom
+func DbFollowList(uId int64, opId int64) []User {
+	var dbUsers []DbFollowing
+	result := db.Where("FansId = ?", uId).Find(&dbUsers)
+
+	if result.RowsAffected == 0 {
+		return nil
+	}
+
+	followList := make([]User, len(dbUsers))
+	for i := 0; i < len(dbUsers); i++ {
+		var dbUser DbUser
+		db.First(&dbUser, dbUsers[i].IdolId)
+
+		var followTestRelation DbFollowing
+		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].IdolId}).First(&followTestRelation)
+		followList[i] = User{
+			Uid:       dbUser.Id,
+			Username:  dbUser.Name,
+			Follow:    dbUser.FanCount,
+			Following: dbUser.FollowCount,
+			Is_follow: followTest.RowsAffected > 0,
+		}
+	}
+
+	return followList
+}
+
+func DbFollowerList(uId int64, opId int64) []User {
+	var dbUsers []DbFollowing
+	result := db.Where("IdolId = ?", uId).Find(&dbUsers)
+
+	if result.RowsAffected == 0 {
+		return nil
+	}
+
+	followerList := make([]User, len(dbUsers))
+	for i := 0; i < len(dbUsers); i++ {
+		var dbUser DbUser
+		db.First(&dbUser, dbUsers[i].FansId)
+
+		var followTestRelation DbFollowing
+		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].FansId}).First(&followTestRelation)
+		followerList[i] = User{
+			Uid:       dbUser.Id,
+			Username:  dbUser.Name,
+			Follow:    dbUser.FanCount,
+			Following: dbUser.FollowCount,
+			Is_follow: followTest.RowsAffected > 0,
+		}
+	}
+
+	return followerList
 }
