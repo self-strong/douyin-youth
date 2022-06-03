@@ -16,7 +16,7 @@ func main() {
 		fmt.Println("Connect database error!")
 	}
 
-	// 
+	//
 	r := gin.Default()
 
 	// public directory is used to serve static resources
@@ -26,6 +26,11 @@ func main() {
 
 	apiRouter.POST("/publish/action/", core.PublishAction)
 	apiRouter.GET("/publish/list/", core.PublishList)
+
+	apiRouter.POST("/favorite/action", core.FavoriteAction)
+	apiRouter.GET("/favorite/list", core.FavoriteList)
+	apiRouter.POST("/comment/action", core.CommentAction)
+	apiRouter.GET("/comment/list", core.CommentList)
 
 	r.Run()
 }
