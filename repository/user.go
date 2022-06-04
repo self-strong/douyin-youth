@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"fmt"
-
 	"github.com/self-strong/douyin-youth/create_db"
 )
 
@@ -98,7 +96,7 @@ func SearchUserById(userId []int64) ([]create_db.User, error) {
 	for i := 0; i < len(userId); i++ {
 
 		res := tb.Where("id = ?", userId[i]).Find(&(user[i]))
-		fmt.Println(userId[i], user[i], res.Error, "数据库")
+		// fmt.Println(userId[i], user[i], res.Error, "数据库")
 		if res.Error != nil {
 			return nil, res.Error
 		}
