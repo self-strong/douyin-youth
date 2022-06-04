@@ -10,6 +10,7 @@ package create_db
 // )
 
 // 用户
+
 type User struct {
 	Id          int64  `gorm:"primary_key;AUTO_INCREMENT"`        //用户id，设置为primary_key主键，AUTO_INCREMENT自增
 	Name        string `gorm:"unique_index:Name;not null;unique"` //设置为唯一索引

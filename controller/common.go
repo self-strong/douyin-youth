@@ -13,6 +13,7 @@ type Video struct {
 	FavoriteCount int64  `json:"favorite_count,omitempty"`
 	CommentCount  int64  `json:"comment_count,omitempty"`
 	IsFavorite    bool   `json:"is_favorite,omitempty"`
+	Title         string `json:"title,omitempty"`
 }
 
 type Comment struct {
@@ -22,6 +23,7 @@ type Comment struct {
 	CreateDate string `json:"create_date,omitempty"`
 }
 
+// s := strconv.FormatInt(i, 10)   将int64转换为string
 type User struct {
 	Id            int64  `json:"id,omitempty"`
 	Name          string `json:"name,omitempty"`

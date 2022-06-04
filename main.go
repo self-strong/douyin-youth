@@ -20,12 +20,12 @@ func initRouter(r *gin.Engine) {
 	apiRouter := r.Group("/douyin")
 
 	// basic apis
-	apiRouter.GET("/feed/", controller.Feed)                //获取视频流
+	apiRouter.GET("/feed/", controller.Feed)                //获取视频流		// 十分关注和是否点赞还需要查表来确定
 	apiRouter.GET("/user/", controller.UserInfo)            //用户信息			// 计算用户的粉丝、关注、是否关注
 	apiRouter.POST("/user/register/", controller.Register)  //用户注册接口		基本功能
 	apiRouter.POST("/user/login/", controller.Login)        //用户登陆接口		基本功能？是否要初始化userlogininfo那个map
-	apiRouter.POST("/publish/action/", controller.Publish)  //视频投稿
-	apiRouter.GET("/publish/list/", controller.PublishList) //发布列表
+	apiRouter.POST("/publish/action/", controller.Publish)  //视频投稿			// 插入数据
+	apiRouter.GET("/publish/list/", controller.PublishList) //发布列表			// 根据用户id查找视频id 来获取发布列表
 
 	// extra apis - I
 	apiRouter.POST("/favorite/action/", controller.FavoriteAction)
