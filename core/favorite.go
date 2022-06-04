@@ -1,9 +1,10 @@
 package core
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 func FavoriteAction(c *gin.Context) {
@@ -68,5 +69,5 @@ func FavoriteList(c *gin.Context) {
 		},
 		VideoList: result,
 	})
-	return
+	// return
 }

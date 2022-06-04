@@ -24,6 +24,8 @@ func main() {
 
 	apiRouter := r.Group("/douyin")
 
+	apiRouter.POST("/user/register/", core.Register)
+	apiRouter.POST("/user/login/", core.Login)
 	apiRouter.POST("/publish/action/", core.PublishAction)
 	apiRouter.GET("/publish/list/", core.PublishList)
 
