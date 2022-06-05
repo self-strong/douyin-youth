@@ -492,3 +492,85 @@ func DbRegister(username, password string) (DbUser, error) {
 
 	return user, res.Error
 }
+
+// 未登陆时刷视频
+func DbFeed() []Video {
+	// var video_list []Video
+
+	tb := db.Table("videos")
+
+	var videos []DbVideo
+
+	tb.Limit(30).Order("timestamp desc").Find(&videos) // 查找video信息
+
+	video_list := make([]Video, len(videos))
+
+	for i := 0; i < len(videos); i++ {
+		// var dbVideo DbVideo
+		dbVideo := videos[i]
+
+		video_list[i].Id = dbVideo.Id
+		video_list[i].Title = dbVideo.Title
+		video_list[i].PlayUrl = dbVideo.PlayUrl
+		video_list[i].CoverUrl = dbVideo.CoverUrl
+		video_list[i].CommentCount = dbVideo.CommentCount
+		video_list[i].ThumbCount = dbVideo.ThumbCount
+
+		var author DbUser
+		db.First(&author, dbVideo.CreateUid) // 视频发布的id
+
+		// var relation DbFollowing
+		// following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+
+		video_list[i].User = User{
+			Uid:       author.Id,
+			Username:  author.Name,
+			Follow:    author.FanCount,
+			Following: author.FollowCount,
+			Is_follow: false,
+		}
+	}
+
+	return video_list
+}
+
+// 未登陆时发布视频
+func DbFeedWithLogin(uId int64) []Video {
+	// var video_list []Video
+
+	tb := db.Table("videos")
+
+	var videos []DbVideo
+
+	tb.Limit(30).Order("timestamp desc").Find(&videos) // 查找video信息
+
+	video_list := make([]Video, len(videos))
+
+	for i := 0; i < len(videos); i++ {
+		// var dbVideo DbVideo
+		dbVideo := videos[i]
+
+		video_list[i].Id = dbVideo.Id
+		video_list[i].Title = dbVideo.Title
+		video_list[i].PlayUrl = dbVideo.PlayUrl
+		video_list[i].CoverUrl = dbVideo.CoverUrl
+		video_list[i].CommentCount = dbVideo.CommentCount
+		video_list[i].ThumbCount = dbVideo.ThumbCount
+
+		var author DbUser
+		db.First(&author, dbVideo.CreateUid) // 视频发布的id
+
+		var relation DbFollowing
+		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+
+		video_list[i].User = User{
+			Uid:       author.Id,
+			Username:  author.Name,
+			Follow:    author.FanCount,
+			Following: author.FollowCount,
+			Is_follow: following.RowsAffected > 0,
+		}
+	}
+
+	return video_list
+}

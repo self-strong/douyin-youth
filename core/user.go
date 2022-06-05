@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"strconv"
 
 	// "github.com/self-strong/douyin-youth/repository"
 
@@ -73,10 +74,12 @@ func Login(c *gin.Context) {
 	token := username + password
 
 	// 通过token进行登陆
-	if user, exist := LoginInfo[token]; exist {
+	userLoginInfo := DbFindUserLoginInfo(token) // 根据token获取用户信息
+
+	if userLoginInfo != nil {
 		c.JSON(http.StatusOK, UserLoginResponse{
 			Response: Response{StatusCode: 0, StatusMsg: "Successful!"},
-			UserId:   user.Id,
+			UserId:   userLoginInfo.Id,
 			Token:    token,
 		})
 	} else {
@@ -120,4 +123,29 @@ func Login(c *gin.Context) {
 			})
 		}
 	}
+}
+
+func UserInfo(c *gin.Context) {
+	// 访问的用户，自身的呢？
+	token := c.Query("token")
+	uIdStr := c.Query("id")
+
+	uId, _ := strconv.ParseInt(uIdStr, 10, 64)
+
+	userLoginInfo := DbFindUserLoginInfo(token) // 根据token获取用户信息
+
+	if userLoginInfo == nil {
+		c.JSON(http.StatusOK, UserResponse{
+			Response: Response{StatusCode: 1, StatusMsg: "User doesn't exist"},
+			User:     User{},
+		})
+	} else {
+
+		user := DbFindUserInfo(uId)
+		c.JSON(http.StatusOK, UserResponse{
+			Response: Response{StatusCode: 0, StatusMsg: "Successful"},
+			User:     *user,
+		})
+	}
+
 }
