@@ -13,8 +13,7 @@ import (
 	ffmpeg_go "github.com/u2takey/ffmpeg-go"
 )
 
-
-// 获取视频的缩略图
+// GetVideoCover 获取视频的缩略图
 func GetVideoCover(videoPath string) (string, error) {
 	buf := bytes.NewBuffer(nil)
 	err := ffmpeg_go.Input(videoPath).
@@ -37,5 +36,5 @@ func GetVideoCover(videoPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return coverPath, nil
+	return filepath.Base(coverPath), nil
 }
