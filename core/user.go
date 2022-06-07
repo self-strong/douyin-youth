@@ -26,8 +26,6 @@ func Register(c *gin.Context) {
 	username := c.Query("username")
 	password := c.Query("password")
 
-	token := username + password
-
 	// 判断token是否存在，存在说明账户存在了？应该是username
 	user := DbFindUserInfoByName(username)
 	if user != nil { // 如果用户已经存在
@@ -38,7 +36,7 @@ func Register(c *gin.Context) {
 		})
 	} else {
 
-		user, err := DbRegister(username, password)
+		uId, err := DbRegister(username, password)
 
 		if err != nil {
 
@@ -56,15 +54,12 @@ func Register(c *gin.Context) {
 		// 	IsFollow:      false,
 		// }
 
-		// userlogininfo更新
-		DbInsertUserLoginInfo(user.Id, user.Name, token)
-		//LoginInfo[token] = UserLoginInfo{
-		//	Id:       user.Id,
-		//	username: user.Name,
-		//}
+		// userLoginInfo更新
+		DbInsertUserLoginInfo(uId, username, username+password)
+		fmt.Println(LoginInfo)
 		c.JSON(http.StatusOK, UserLoginResponse{
 			Response: Response{StatusCode: 0, StatusMsg: "Successful!"},
-			UserId:   user.Id,
+			UserId:   uId,
 			Token:    username + password,
 		})
 	}
@@ -77,7 +72,7 @@ func Login(c *gin.Context) {
 
 	token := username + password
 
-	// 通过token进行登陆
+	// 通过token进行登陆 ?
 	userLoginInfo := DbFindUserInfoByToken(token) // 根据token获取用户信息
 
 	if userLoginInfo != nil {
@@ -142,7 +137,6 @@ func Login(c *gin.Context) {
 }
 
 func UserInfo(c *gin.Context) {
-	// 访问的用户，自身的呢？
 	token := c.Query("token")
 	uIdStr := c.Query("user_id")
 
@@ -163,5 +157,4 @@ func UserInfo(c *gin.Context) {
 			User:     *user,
 		})
 	}
-
 }

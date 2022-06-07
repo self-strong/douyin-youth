@@ -31,10 +31,17 @@ func GetVideoCover(videoPath string) (string, error) {
 	}
 
 	base := filepath.Base(videoPath)
-	coverPath := filepath.Join("./public/cover/", strings.Replace(base, ".mp4", ".jpeg", -1))
+	coverPath := filepath.Join("./public/cover/", strings.Replace(base, ".mp4", ".jpg", -1))
 	err = imaging.Save(img, coverPath)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Base(coverPath), nil
 }
+
+//http://localhost:8080/douyin/publish/video/?videoName=1_SVID_20220607_162459_1.mp4
+//http://localhost:8080/douyin/publish/cover/?coverName=1_SVID_20220607_162459_1.jpg
+//
+//http://localhost:8080/douyin/publish/video/?videoName=1_SVID_20220607_162459_1.mp4
+//
+//http://localhost:8080/douyin/publish/video/?videoName=1_Trim.mp4

@@ -30,8 +30,8 @@ func main() {
 	apiRouter.POST("/user/login/", core.Login)       // 用户登录
 
 	//上传视频以及获取发布列表
-	apiRouter.POST("/publish/action/", core.PublishAction)
-	apiRouter.GET("/publish/list/", core.PublishList)
+	apiRouter.POST("/publish/action/", core.PublishAction) // 发布视频
+	apiRouter.GET("/publish/list/", core.PublishList)      // 获取视频列表
 
 	//扩展接口一
 	apiRouter.POST("/favorite/action/", core.FavoriteAction)
