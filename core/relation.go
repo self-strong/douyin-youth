@@ -32,6 +32,11 @@ func RelationAction(c *gin.Context) {
 	}
 
 	toIdInt, _ := strconv.ParseInt(toId, 10, 64)
+
+	if userLoginInfo.Id == toIdInt {
+		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "can not follow yourself"})
+		return
+	}
 	var result error
 	if actionType == "1" {
 		result = DbFollowAction(userLoginInfo.Id, toIdInt)
