@@ -57,7 +57,7 @@ func FavoriteList(c *gin.Context) {
 	uId, _ := strconv.ParseInt(uIdStr, 10, 64)
 
 	result := DbFavoriteList(uId)
-	if result != nil {
+	if result == nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "Favorite list is empty"})
 		return
 	}

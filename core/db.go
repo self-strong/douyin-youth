@@ -3,6 +3,7 @@ package core
 // 对数据库的操作
 
 import (
+	"errors"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -207,7 +208,7 @@ func DbFavoriteAction(uId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("ThumbCount + ?", 1))
+	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -220,14 +221,14 @@ func DbFavoriteAction(uId int64, vId int64) error {
 func DbUnFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
 	thumbInfo := DbThumb{Uid: uId, Vid: vId}
-	result := tx.Delete(&thumbInfo)
+	result := tx.Where("Uid=?", uId).Where("vid=?", vId).Delete(&thumbInfo)
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("ThumbCount - ?", 1))
+	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -260,7 +261,10 @@ func DbFavoriteList(uId int64) []Video {
 		db.First(&author, dbVideo.CreateUid)
 
 		var relation DbFollowing
-		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+
+		//将first更改为find 未找到匹配项时不会返回错误
+
+		following := db.Where("fans_id = ? AND idol_id = ?", uId, author.Id).Find(&relation)
 
 		favoriteVideos[i].User = User{
 			Uid:       author.Id,
@@ -285,7 +289,7 @@ func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("CommentCount + ?", 1))
+	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error, Comment{}
@@ -323,7 +327,7 @@ func DbDeleteComment(cmId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("CommentCount - ?", 1))
+	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -346,7 +350,7 @@ func DbCommentList(uId int64, vId int64) []Comment {
 		db.First(&author, dbComments[i].Uid)
 
 		var relation DbFollowing
-		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+		following := db.Where("fans_id = ? AND idol_id = ?", uId, author.Id).Find(&relation)
 
 		user := User{
 			Uid:       author.Id,
@@ -374,19 +378,25 @@ func DbFollowAction(uId int64, toId int64) error {
 		FansId: uId,
 		IdolId: toId,
 	}
+	//如果关注列表中已经存在关注关系，返回错误
+	following := db.Where("fans_id = ? AND idol_id = ?", uId, toId).Find(&relation)
+	if following.RowsAffected != 0 {
+		return errors.New("do not repeat the follow")
+	}
+
 	if err := tx.Create(&relation).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("FanCount + ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("FollowCount + ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -401,19 +411,19 @@ func DbUnFollowAction(uId int64, toId int64) error {
 		FansId: uId,
 		IdolId: toId,
 	}
-	if err := tx.Delete(&relation).Error; err != nil {
+	if err := tx.Where("fans_id=?", uId).Where("idol_id=?", toId).Delete(&relation).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("FanCount - ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("FollowCount - ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -424,7 +434,7 @@ func DbUnFollowAction(uId int64, toId int64) error {
 // DbFollowList get uId follows whom
 func DbFollowList(uId int64, opId int64) []User {
 	var dbUsers []DbFollowing
-	result := db.Where("FansId = ?", uId).Find(&dbUsers)
+	result := db.Where("fans_id = ?", uId).Find(&dbUsers)
 
 	if result.RowsAffected == 0 {
 		return nil
@@ -435,14 +445,14 @@ func DbFollowList(uId int64, opId int64) []User {
 		var dbUser DbUser
 		db.First(&dbUser, dbUsers[i].IdolId)
 
-		var followTestRelation DbFollowing
-		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].IdolId}).First(&followTestRelation)
+		//var followTestRelation DbFollowing
+		//followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].IdolId}).First(&followTestRelation)
 		followList[i] = User{
 			Uid:       dbUser.Id,
 			Username:  dbUser.Name,
 			Follow:    dbUser.FanCount,
 			Following: dbUser.FollowCount,
-			Is_follow: followTest.RowsAffected > 0,
+			Is_follow: true,
 		}
 	}
 
@@ -451,7 +461,7 @@ func DbFollowList(uId int64, opId int64) []User {
 
 func DbFollowerList(uId int64, opId int64) []User {
 	var dbUsers []DbFollowing
-	result := db.Where("IdolId = ?", uId).Find(&dbUsers)
+	result := db.Where("idol_id = ?", uId).Find(&dbUsers)
 
 	if result.RowsAffected == 0 {
 		return nil
@@ -463,7 +473,7 @@ func DbFollowerList(uId int64, opId int64) []User {
 		db.First(&dbUser, dbUsers[i].FansId)
 
 		var followTestRelation DbFollowing
-		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].FansId}).First(&followTestRelation)
+		followTest := db.Model(DbFollowing{FansId: opId, IdolId: dbUsers[i].FansId}).Find(&followTestRelation)
 		followerList[i] = User{
 			Uid:       dbUser.Id,
 			Username:  dbUser.Name,
