@@ -10,7 +10,7 @@ import (
 func FavoriteAction(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "User Not Logged in or Not Exist"})
@@ -46,7 +46,7 @@ func FavoriteAction(c *gin.Context) {
 func FavoriteList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "User Not Logged in or Not Exist"})
