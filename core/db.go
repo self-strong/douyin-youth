@@ -4,6 +4,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -15,26 +16,26 @@ var db *gorm.DB
 
 // 数据库中单独使用的表
 
-// 用户表
+// DbUser 用户表
 type DbUser struct {
 	Id          int64  `gorm:"primary_key;AUTO_INCREMENT"`            //用户id，设置为primary_key主键，AUTO_INCREMENT自增
 	Name        string `gorm:"unique_index:UserName;not null;unique"` //设置为唯一索引
 	Password    string `gorm:"type:varchar(64);not null"`
-	FollowCount int64  `gorm:"default:0"` // 默认为0
-	FanCount    int64  `gorm:"default:0"`
+	FollowCount int64  `json:"follow_count" gorm:"default:0"` // 默认为0
+	FanCount    int64  `json:"fan_count" gorm:"default:0"`
 }
 
-// 设置数据库表名
+// TableName 设置数据库表名
 func (*DbUser) TableName() string {
 	return "users"
 }
 
-// 视频表
+// DbVideo 视频表
 type DbVideo struct {
 	Id           int64  `gorm:"primary_key;AUTO_INCREMENT"`
-	Title        string `gorm:"index:VdeioTitle;not null"` //设置为普通索引
+	Title        string `gorm:"index:VideoTitle;not null"` //设置为普通索引
 	CreateUid    int64  `json:"create_uid" gorm:"not null"`
-	Timestamp    string `json:"timestamp" gorm:"not null"`
+	Timestamp    int64  `json:"timestamp" gorm:"not null"`
 	PlayUrl      string `json:"play_url" gorm:"not null"`
 	CoverUrl     string `json:"cover_url" gorm:"not null"`
 	ThumbCount   int64  `json:"thumb_count" gorm:"default:0"`
@@ -45,7 +46,7 @@ func (*DbVideo) TableName() string {
 	return "videos"
 }
 
-// 点赞表
+// DbThumb 点赞表
 type DbThumb struct {
 	Uid       int64  `gorm:"index:Uid;not null"`
 	Vid       int64  `gorm:"index:Vid;not null"`
@@ -56,7 +57,7 @@ func (*DbThumb) TableName() string {
 	return "thumbs"
 }
 
-// 关注表
+// DbFollowing 关注表
 type DbFollowing struct {
 	FansId int64 `gorm:"index:FansId;not null"` //粉丝数，设置为普通索引
 	IdolId int64 `gorm:"index:IdolId;not null"` //关注数，设置为普通索引
@@ -66,7 +67,7 @@ func (*DbFollowing) TableName() string {
 	return "followings"
 }
 
-// 评论表
+// DbComment 评论表
 type DbComment struct {
 	CmId      int64  `gorm:"primary_key;AUTO_INCREMENT"` //评论id，设置为primary_key主键，AUTO_INCREMENT自增
 	Vid       int64  `gorm:"index:Vid;not null"`         //粉丝数，设置为普通索引
@@ -79,30 +80,33 @@ func (*DbComment) TableName() string {
 	return "comments"
 }
 
-// 用户登录信息
+// UserLoginInfo 用户登录信息
 type UserLoginInfo struct {
 	Id       int64
-	username string
+	UserName string
 }
 
-// 向数据库中插入用户发布的video记录
-func DbInsertVideoInfo(uId int64, fileName, videoPath, coverPath string) *gorm.DB {
+// DbInsertVideoInfo 向数据库中插入用户发布的video记录
+func DbInsertVideoInfo(uId int64, title, fileName, coverName string) error {
+	playUrl := "http://192.168.1.4:8080/douyin/publish/video/?videoName=" + fileName
+	coverUrl := "http://192.168.1.4:8080/douyin/publish/cover/?coverName=" + coverName
 	// 可不可以将数据库插入请求存下来，待缓存区满之后再批量插入
-	videoInfo := DbVideo{Title: fileName, CreateUid: uId, Timestamp: time.Now().String(), PlayUrl: videoPath, CoverUrl: coverPath}
+	videoInfo := DbVideo{
+		Title:     title,
+		CreateUid: uId,
+		Timestamp: time.Now().Unix(),
+		PlayUrl:   playUrl,
+		CoverUrl:  coverUrl,
+	}
 	result := db.Create(&videoInfo)
-	return result
+	return result.Error
 }
 
-// 模拟用户登录时的Token和用户信息
-var LoginInfo = map[string]UserLoginInfo{
-	"token": {
-		Id:       1,
-		username: "king",
-	},
-}
+// LoginInfo 模拟用户登录时的Token和用户信息
+var LoginInfo map[string]UserLoginInfo
 
-// 根据Token获取登录用户的信息
-func DbFindUserLoginInfo(token string) *UserLoginInfo {
+// DbFindUserInfoByToken 根据Token获取登录用户的信息
+func DbFindUserInfoByToken(token string) *UserLoginInfo {
 	// 在数据库表中查询登录用户的TOKEN
 	userLoginInfo, ok := LoginInfo[token]
 	if ok { // 存在
@@ -111,74 +115,97 @@ func DbFindUserLoginInfo(token string) *UserLoginInfo {
 	return nil
 }
 
-// 获取发布视频列表 是不是可以利用缓存的思想来优化以下
+// DbInsertUserLoginInfo 插入用户登录的信息
+func DbInsertUserLoginInfo(id int64, userName, token string) {
+	LoginInfo[token] = UserLoginInfo{Id: id, UserName: userName}
+}
+
+// DbFindVideoList 获取发布视频列表 是不是可以利用缓存的思想来优化以下
 func DbFindVideoList(user *User) []Video {
 	var dbVideos []DbVideo
-	db.Where("create_uid = ?", user.Uid).Find(&dbVideos)
-	if dbVideos == nil {
+	ret := db.Table("videos").Where("create_uid = ?", user.Uid).Find(&dbVideos)
+	if ret.RowsAffected == 0 {
 		return nil
 	}
 
 	videos := make([]Video, len(dbVideos))
 	for i := 0; i < len(dbVideos); i++ {
-		var vdo Video
-		vdo.User = *user
+		videos[i].Author = *user
 		// 恢复Title的原名
-		vdo.Title = dbVideos[i].Title
-		vdo.PlayUrl = dbVideos[i].PlayUrl
-		vdo.CoverUrl = dbVideos[i].CoverUrl
-		vdo.Id = dbVideos[i].Id
-		vdo.CommentCount = dbVideos[i].CommentCount
-		vdo.ThumbCount = dbVideos[i].ThumbCount
-		vdo.Is_favorite = true
+		//videos[i].Title = dbVideos[i].Title
+		videos[i].PlayUrl = dbVideos[i].PlayUrl
+		videos[i].CoverUrl = dbVideos[i].CoverUrl
+		videos[i].Id = dbVideos[i].Id
+		videos[i].CommentCount = dbVideos[i].CommentCount
+		videos[i].ThumbCount = dbVideos[i].ThumbCount
+		videos[i].IsFavorite = false // 必须弄成false ?
 	}
 	return videos
 }
 
-// 根据uId查找用户信息
-func DbFindUserInfo(uId int64) *User {
+// DbFindUserInfoById 根据uId查找用户信息
+func DbFindUserInfoById(uId int64) *User {
 	var dbUser DbUser
-	db.First(&dbUser, uId)
-	var user User
-	user.Uid = dbUser.Id
-	user.Username = dbUser.Name
-	user.Follow = 0
-	user.Following = 0
-	user.Is_follow = false
-	return &user
-	// 判断用户是否存在
-}
-
-func DbFindUserName(username string) *User {
-	var dbUser DbUser
-	db.Table("users").Where("name = ?", username).First(&dbUser)
+	ret := db.Table("users").Where("id = ?", uId).Find(&dbUser)
+	if ret.RowsAffected == 0 {
+		return nil
+	}
+	//db.First(&dbUser, uId)
+	//if dbUser.Id == 0 {
+	//	return nil
+	//}
 	var user User
 	user.Uid = dbUser.Id
 	user.Username = dbUser.Name
 	user.Follow = dbUser.FollowCount
 	user.Following = dbUser.FanCount
-	user.Is_follow = false // 这需要查表
+	user.IsFollow = false // 这需要查表z
+	return &user
+	// 判断用户是否存在
+}
+
+// DbFindUserInfoByName 根据username查找用户信息
+func DbFindUserInfoByName(username string) *User {
+	var dbUser DbUser
+	ret := db.Table("users").Where("name = ?", username).Find(&dbUser)
+	if ret.RowsAffected == 0 {
+		return nil
+	}
+	//if dbUser.Id == 0 {
+	//	return nil
+	//}
+	var user User
+	user.Uid = dbUser.Id
+	user.Username = dbUser.Name
+	user.Follow = dbUser.FollowCount
+	user.Following = dbUser.FanCount
+	user.IsFollow = false // 这需要查表
 	return &user
 }
 
-func DbCheckPwd(username, password string) bool {
+// DbCheckUser 检查用户是否存在
+// 返回值-1代表用户不存在，返回值0代表用户密码错误，其他则代表用户的ID
+func DbCheckUser(username, password string) int64 {
 	var dbUser DbUser
-	db.Table("users").Where("name = ?", username).First(&dbUser)
-	if dbUser.Password == password {
-		return true
-	} else {
-		return false
+	ret := db.Table("users").Where("name = ?", username).First(&dbUser)
+	if ret.RowsAffected == 0 {
+		return -1
 	}
+
+	if dbUser.Name == username && dbUser.Password == password {
+		return dbUser.Id
+	}
+	return 0
 }
 
-// 连接数据库
+// DbConnect 连接数据库
 func DbConnect() error {
 	// 是否已有数据库连接
 	if db != nil {
 		return nil
 	}
 	// 配置mysql,用户名、密码；
-	dsn := "root:hallo2014@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:wb20010115@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
 	// db, err := gorm.Open(mysql.New(mysql.Config{
 	// 	DSN:                       dsn,
 	// 	DefaultStringSize:         256,   // string 类型字段的默认长度
@@ -188,13 +215,17 @@ func DbConnect() error {
 	// 	SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
 	// }), &gorm.Config{})
 	var err error
-	db, err = gorm.Open((mysql.Open(dsn)), &gorm.Config{})
+	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
 	if err != nil {
 		return err
 	}
 
+	LoginInfo = map[string]UserLoginInfo{} // 初始化登录信息表
+
 	return nil
+	// 自动迁移创建表格
+	// err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
 }
 
 // DbFavoriteAction Thumb Up
@@ -266,12 +297,12 @@ func DbFavoriteList(uId int64) []Video {
 
 		following := db.Where("fans_id = ? AND idol_id = ?", uId, author.Id).Find(&relation)
 
-		favoriteVideos[i].User = User{
+		favoriteVideos[i].Author = User{
 			Uid:       author.Id,
 			Username:  author.Name,
 			Follow:    author.FanCount,
 			Following: author.FollowCount,
-			Is_follow: following.RowsAffected > 0,
+			IsFollow:  following.RowsAffected > 0,
 		}
 	}
 
@@ -309,7 +340,7 @@ func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
 			Username:  user.Name,
 			Follow:    user.FanCount,
 			Following: user.FollowCount,
-			Is_follow: true,
+			IsFollow:  true,
 		},
 		Content:    text,
 		CreateDate: comment.Timestamp,
@@ -357,7 +388,7 @@ func DbCommentList(uId int64, vId int64) []Comment {
 			Username:  author.Name,
 			Follow:    author.FanCount,
 			Following: author.FollowCount,
-			Is_follow: following.RowsAffected > 0,
+			IsFollow:  following.RowsAffected > 0,
 		}
 
 		comments[i] = Comment{
@@ -452,7 +483,7 @@ func DbFollowList(uId int64, opId int64) []User {
 			Username:  dbUser.Name,
 			Follow:    dbUser.FanCount,
 			Following: dbUser.FollowCount,
-			Is_follow: true,
+			IsFollow:  true,
 		}
 	}
 
@@ -479,108 +510,101 @@ func DbFollowerList(uId int64, opId int64) []User {
 			Username:  dbUser.Name,
 			Follow:    dbUser.FanCount,
 			Following: dbUser.FollowCount,
-			Is_follow: followTest.RowsAffected > 0,
+			IsFollow:  followTest.RowsAffected > 0,
 		}
 	}
 
 	return followerList
 }
 
-func DbRegister(username, password string) (DbUser, error) {
+// DbRegister 注册
+func DbRegister(username, password string) (int64, error) {
 
-	tb := db.Table("users")
+	//tb := db.Table("users")
 	// q := query.Use(db).User
 	// //插入姓名
-	user := DbUser{Name: username, Password: password, FollowCount: 0, FanCount: 0}
-	res := tb.Create(&user)
+	dbUser := DbUser{Name: username, Password: password, FollowCount: 0, FanCount: 0}
+	ret := db.Table("users").Create(&dbUser)
 	// err = q.WithContext(context.Background()).Create(&user)
 
-	// if err != nil {
-	// 	// println(err)
-	// 	return user, err
-	// }
-
-	return user, res.Error
+	return dbUser.Id, ret.Error
 }
 
-// 未登陆时刷视频
-func DbFeed() []Video {
-	// var video_list []Video
+// DbFeed 未登陆时刷视频
+func DbFeed(latestTime int64) ([]Video, int64) {
 
-	tb := db.Table("videos")
+	latestTime = time.Now().Unix()
 
-	var videos []DbVideo
+	var dbVideos []DbVideo
+	fmt.Println("latestTime=", latestTime)
+	ret := db.Table("videos").Where("timestamp < ?", latestTime).Order("timestamp desc").Limit(30).Find(&dbVideos) // 查找video信息
+	fmt.Println("dbVideos=", dbVideos)
 
-	tb.Limit(30).Order("timestamp desc").Find(&videos) // 查找video信息
+	if ret.RowsAffected == 0 {
+		return nil, -1
+	}
 
-	video_list := make([]Video, len(videos))
+	videoLen := len(dbVideos)
+	videoList := make([]Video, videoLen)
 
-	for i := 0; i < len(videos); i++ {
-		// var dbVideo DbVideo
-		dbVideo := videos[i]
+	for i := 0; i < len(dbVideos); i++ {
 
-		video_list[i].Id = dbVideo.Id
-		video_list[i].Title = dbVideo.Title
-		video_list[i].PlayUrl = dbVideo.PlayUrl
-		video_list[i].CoverUrl = dbVideo.CoverUrl
-		video_list[i].CommentCount = dbVideo.CommentCount
-		video_list[i].ThumbCount = dbVideo.ThumbCount
+		videoList[i].Id = dbVideos[i].Id
+		videoList[i].Title = dbVideos[i].Title
+		videoList[i].PlayUrl = dbVideos[i].PlayUrl
+		videoList[i].CoverUrl = dbVideos[i].CoverUrl
+		videoList[i].CommentCount = dbVideos[i].CommentCount
+		videoList[i].ThumbCount = dbVideos[i].ThumbCount
 
-		var author DbUser
-		db.First(&author, dbVideo.CreateUid) // 视频发布的id
+		DbFindUserInfoById(dbVideos[i].CreateUid)
+		//db.First(&author, dbVideos[i].CreateUid) // 视频发布的id
 
 		// var relation DbFollowing
 		// following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
 
-		video_list[i].User = User{
-			Uid:       author.Id,
-			Username:  author.Name,
-			Follow:    author.FanCount,
-			Following: author.FollowCount,
-			Is_follow: false,
-		}
+		videoList[i].Author = *DbFindUserInfoById(dbVideos[i].CreateUid)
 	}
 
-	return video_list
+	return videoList, dbVideos[videoLen-1].Timestamp
 }
 
-// 未登陆时发布视频
-func DbFeedWithLogin(uId int64) []Video {
-	// var video_list []Video
+// // DbFeedWithLogin 未登陆时发布视频
+// func DbFeedWithLogin(uId int64) []Video {
+// 	// var video_list []Video
 
-	tb := db.Table("videos")
+// 	tb := db.Table("videos")
 
-	var videos []DbVideo
+// 	var videos []DbVideo
 
-	tb.Limit(30).Order("timestamp desc").Find(&videos) // 查找video信息
+// 	tb.Limit(30).Order("timestamp desc").Find(&videos) // 查找video信息
 
-	video_list := make([]Video, len(videos))
+// 	videoList := make([]Video, len(videos))
 
-	for i := 0; i < len(videos); i++ {
-		// var dbVideo DbVideo
-		dbVideo := videos[i]
+// 	for i := 0; i < len(videos); i++ {
+// 		// var dbVideo DbVideo
+// 		dbVideo := videos[i]
 
-		video_list[i].Id = dbVideo.Id
-		video_list[i].Title = dbVideo.Title
-		video_list[i].PlayUrl = dbVideo.PlayUrl
-		video_list[i].CoverUrl = dbVideo.CoverUrl
-		video_list[i].CommentCount = dbVideo.CommentCount
-		video_list[i].ThumbCount = dbVideo.ThumbCount
+// 		videoList[i].Id = dbVideo.Id
+// 		//videoList[i].Title = dbVideo.Title
+// 		videoList[i].PlayUrl = dbVideo.PlayUrl
+// 		videoList[i].CoverUrl = dbVideo.CoverUrl
+// 		videoList[i].CommentCount = dbVideo.CommentCount
+// 		videoList[i].ThumbCount = dbVideo.ThumbCount
 
-		var author DbUser
-		db.First(&author, dbVideo.CreateUid) // 视频发布的id
+// 		var author DbUser
+// 		db.First(&author, dbVideo.CreateUid) // 视频发布的id
 
-		var relation DbFollowing
-		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
+// 		var relation DbFollowing
+// 		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
 
-		video_list[i].User = User{
-			Uid:       author.Id,
-			Username:  author.Name,
-			Follow:    author.FanCount,
-			Following: author.FollowCount,
-			Is_follow: following.RowsAffected > 0,
-		}
-	}
+// 		videoList[i].Author = User{
+// 			Uid:       author.Id,
+// 			Username:  author.Name,
+// 			Follow:    author.FanCount,
+// 			Following: author.FollowCount,
+// 			IsFollow:  following.RowsAffected > 0,
+// 		}
+// 	}
 
-	return video_list
-}
+// 	return videoList
+// }
