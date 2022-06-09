@@ -263,7 +263,7 @@ func DbFavoriteAction(uId int64, vId int64) error {
 
 	// update video data
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -284,7 +284,7 @@ func DbUnFavoriteAction(uId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count - ?", 1))
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -347,7 +347,7 @@ func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error, Comment{}
@@ -385,7 +385,7 @@ func DbDeleteComment(cmId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count - ?", 1))
+	result := tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -448,13 +448,13 @@ func DbFollowAction(uId int64, toId int64) error {
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("fan_count", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("follow_count", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -475,13 +475,13 @@ func DbUnFollowAction(uId int64, toId int64) error {
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("fan_count", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("follow_count", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
