@@ -241,9 +241,19 @@ func DbConnect() error {
 	// err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
 }
 
-// DbFavoriteAction Thumb Up
+// DbFavoriteAction Thumb Up, tx enabled
 func DbFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
+
+	// check validity
+	thumbCheck := DbThumb{Uid: uId, Vid: vId}
+	checkResult := tx.First(&thumbCheck)
+	if checkResult.RowsAffected != 0 {
+		tx.Rollback()
+		return errors.New("repeated action")
+	}
+
+	// create record
 	thumbInfo := DbThumb{Uid: uId, Vid: vId, Timestamp: time.Now().String()}
 	result := tx.Create(&thumbInfo)
 	if result.Error != nil {
@@ -251,8 +261,9 @@ func DbFavoriteAction(uId int64, vId int64) error {
 		return result.Error
 	}
 
+	// update video data
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -261,9 +272,10 @@ func DbFavoriteAction(uId int64, vId int64) error {
 	return tx.Commit().Error
 }
 
-// DbUnFavoriteAction Cancel Thumb Up
+// DbUnFavoriteAction Cancel Thumb Up, tx enabled
 func DbUnFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
+
 	thumbInfo := DbThumb{Uid: uId, Vid: vId}
 	result := tx.Where("Uid=?", uId).Where("vid=?", vId).Delete(&thumbInfo)
 	if result.Error != nil {
@@ -272,7 +284,7 @@ func DbUnFavoriteAction(uId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count - ?", 1))
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -300,6 +312,8 @@ func DbFavoriteList(uId int64) []Video {
 		favoriteVideos[i].CoverUrl = dbVideo.CoverUrl
 		favoriteVideos[i].CommentCount = dbVideo.CommentCount
 		favoriteVideos[i].ThumbCount = dbVideo.ThumbCount
+
+		favoriteVideos[i].IsFavorite = DbCheckIsFavorite(uId, dbVideo.Id)
 
 		var author DbUser
 		db.First(&author, dbVideo.CreateUid)
@@ -333,7 +347,7 @@ func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error, Comment{}
@@ -371,7 +385,7 @@ func DbDeleteComment(cmId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count - ?", 1))
+	result := tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -434,13 +448,13 @@ func DbFollowAction(uId int64, toId int64) error {
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("fan_count", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("follow_count", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -461,13 +475,13 @@ func DbUnFollowAction(uId int64, toId int64) error {
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("fan_count", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("follow_count", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
