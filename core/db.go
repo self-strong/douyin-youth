@@ -241,9 +241,19 @@ func DbConnect() error {
 	// err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
 }
 
-// DbFavoriteAction Thumb Up
+// DbFavoriteAction Thumb Up, tx enabled
 func DbFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
+
+	// check validity
+	thumbCheck := DbThumb{Uid: uId, Vid: vId}
+	checkResult := tx.First(&thumbCheck)
+	if checkResult.RowsAffected != 0 {
+		tx.Rollback()
+		return errors.New("repeated action")
+	}
+
+	// create record
 	thumbInfo := DbThumb{Uid: uId, Vid: vId, Timestamp: time.Now().String()}
 	result := tx.Create(&thumbInfo)
 	if result.Error != nil {
@@ -251,6 +261,7 @@ func DbFavoriteAction(uId int64, vId int64) error {
 		return result.Error
 	}
 
+	// update video data
 	dbVideo := DbVideo{Id: vId}
 	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count + ?", 1))
 	if result.Error != nil {
@@ -261,9 +272,10 @@ func DbFavoriteAction(uId int64, vId int64) error {
 	return tx.Commit().Error
 }
 
-// DbUnFavoriteAction Cancel Thumb Up
+// DbUnFavoriteAction Cancel Thumb Up, tx enabled
 func DbUnFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
+
 	thumbInfo := DbThumb{Uid: uId, Vid: vId}
 	result := tx.Where("Uid=?", uId).Where("vid=?", vId).Delete(&thumbInfo)
 	if result.Error != nil {
