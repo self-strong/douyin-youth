@@ -36,7 +36,7 @@ var HttpContentType = map[string]string{
 // 不限制登陆状态，返回按投稿时间倒序的视频列表，由服务端控制；最多30个
 func Feed(c *gin.Context) {
 	latestTimeStr := c.Query("latest_time")
-	//token := c.Query("token")
+	token := c.Query("token") // 获得token
 	latestTime, _ := strconv.ParseInt(latestTimeStr, 10, 64)
 	if latestTime == 0 {
 		latestTime = time.Now().Unix()
@@ -44,7 +44,7 @@ func Feed(c *gin.Context) {
 
 	//userLoginInfo := DbFindUserInfoByToken(token) // 根据token获取用户信息
 
-	videoList, nextTime := DbFeed(latestTime)
+	videoList, nextTime := DbFeed(latestTime, token)
 	if videoList == nil {
 		c.JSON(http.StatusOK, FeedResponse{
 			Response: Response{StatusCode: 1,
