@@ -545,7 +545,6 @@ func DbRegister(username, password string) (int64, error) {
 
 // DbFeed 刷视频
 func DbFeed(latestTime int64, token string) ([]Video, int64) {
-
 	latestTime = time.Now().Unix()
 
 	var dbVideos []DbVideo

@@ -11,12 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type VideoListResponse struct {
-	Response
-	VideoList []Video `json:"video_list,omitempty"`
-}
-
-// PublishAction Publish check token then save upload file to public directory
+// PublishAction 用户发布视频
 func PublishAction(c *gin.Context) {
 	token := c.PostForm("token") // 获取token
 	title := c.PostForm("title") // 获取title
@@ -28,10 +23,6 @@ func PublishAction(c *gin.Context) {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "User doesn't log in"})
 		return
 	}
-
-	// 判断用户上传的文件是否是视频文件
-	contentType := c.GetHeader("Content-Type")
-	fmt.Println("Content-Type :", contentType)
 
 	// 获取用户上传的数据
 	data, err := c.FormFile("data")
@@ -107,25 +98,24 @@ func PublishList(c *gin.Context) {
 	// 根据用户ID获取投稿视频
 	videoList := DbFindVideoList(user)
 
+	// 如果没有投稿
 	if videoList == nil {
 		c.JSON(http.StatusOK, VideoListResponse{
 			Response: Response{
 				StatusCode: 1,
-				StatusMsg:  "no videos!",
+				StatusMsg:  "user doesn't publish any videos!",
 			},
 			VideoList: nil,
 		})
 		return
 	}
 
+	// 返回发布成功的报文
 	c.JSON(http.StatusOK, VideoListResponse{
 		Response: Response{
 			StatusCode: 0,
+			StatusMsg:  "Succeed!",
 		},
 		VideoList: videoList,
 	})
-	return
 }
-
-//http://localhost:8080/douyin/publish/video/?videoName=1_bear.mp4
-//http://localhost:8080/douyin/publish/cover/?coverName=1_bear.jpeg

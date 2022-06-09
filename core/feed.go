@@ -10,12 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type FeedResponse struct {
-	Response
-	VideoList []Video `json:"video_list,omitempty"`
-	NextTime  int64   `json:"next_time,omitempty"`
-}
-
 // HttpContentType 文件类型
 var HttpContentType = map[string]string{
 	".avi":  "video/avi",
@@ -36,19 +30,17 @@ var HttpContentType = map[string]string{
 // 不限制登陆状态，返回按投稿时间倒序的视频列表，由服务端控制；最多30个
 func Feed(c *gin.Context) {
 	latestTimeStr := c.Query("latest_time")
-	token := c.Query("token") // 获得token
+	token := c.Query("token")
 	latestTime, _ := strconv.ParseInt(latestTimeStr, 10, 64)
 	if latestTime == 0 {
 		latestTime = time.Now().Unix()
 	}
 
-	//userLoginInfo := DbFindUserInfoByToken(token) // 根据token获取用户信息
-
 	videoList, nextTime := DbFeed(latestTime, token)
 	if videoList == nil {
 		c.JSON(http.StatusOK, FeedResponse{
 			Response: Response{StatusCode: 1,
-				StatusMsg: "this is a bug",
+				StatusMsg: "no videos",
 			},
 		})
 	} else {
@@ -58,17 +50,6 @@ func Feed(c *gin.Context) {
 			NextTime:  nextTime,
 		})
 	}
-
-	//if userLoginInfo == nil {
-	//
-	//} else {
-	//	videoList := DbFeedWithLogin(userLoginInfo.Id)
-	//	c.JSON(http.StatusOK, FeedResponse{
-	//		Response:  Response{StatusCode: 0, StatusMsg: "Successful!"},
-	//		VideoList: videoList,
-	//		NextTime:  time.Now().Unix(),
-	//	})
-	//}
 }
 
 // GetVideo 获取视频
