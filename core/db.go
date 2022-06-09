@@ -313,6 +313,8 @@ func DbFavoriteList(uId int64) []Video {
 		favoriteVideos[i].CommentCount = dbVideo.CommentCount
 		favoriteVideos[i].ThumbCount = dbVideo.ThumbCount
 
+		favoriteVideos[i].IsFavorite = DbCheckIsFavorite(uId, dbVideo.Id)
+
 		var author DbUser
 		db.First(&author, dbVideo.CreateUid)
 
