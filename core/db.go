@@ -120,6 +120,17 @@ func DbInsertUserLoginInfo(id int64, userName, token string) {
 	LoginInfo[token] = UserLoginInfo{Id: id, UserName: userName}
 }
 
+// DbCheckIsFavorite 检查视频vId是不是uId的喜欢视频
+func DbCheckIsFavorite(uId, vId int64) bool {
+	var thumb DbThumb
+	ret := db.Table("thumbs").Where("uid = ? and vId = ?", uId, vId).Find(&thumb)
+	fmt.Println(thumb)
+	if ret.RowsAffected == 0 {
+		return false
+	}
+	return true
+}
+
 // DbFindVideoList 获取发布视频列表 是不是可以利用缓存的思想来优化以下
 func DbFindVideoList(user *User) []Video {
 	var dbVideos []DbVideo
@@ -131,14 +142,14 @@ func DbFindVideoList(user *User) []Video {
 	videos := make([]Video, len(dbVideos))
 	for i := 0; i < len(dbVideos); i++ {
 		videos[i].Author = *user
-		// 恢复Title的原名
-		//videos[i].Title = dbVideos[i].Title
+		videos[i].Title = dbVideos[i].Title
 		videos[i].PlayUrl = dbVideos[i].PlayUrl
 		videos[i].CoverUrl = dbVideos[i].CoverUrl
 		videos[i].Id = dbVideos[i].Id
 		videos[i].CommentCount = dbVideos[i].CommentCount
 		videos[i].ThumbCount = dbVideos[i].ThumbCount
-		videos[i].IsFavorite = false // 必须弄成false ?
+
+		videos[i].IsFavorite = DbCheckIsFavorite(user.Uid, dbVideos[i].Id)
 	}
 	return videos
 }
@@ -163,6 +174,8 @@ func DbFindUserInfoById(uId int64) *User {
 	return &user
 	// 判断用户是否存在
 }
+
+//func DbCheckIsFollow()
 
 // DbFindUserInfoByName 根据username查找用户信息
 func DbFindUserInfoByName(username string) *User {
@@ -530,13 +543,13 @@ func DbRegister(username, password string) (int64, error) {
 	return dbUser.Id, ret.Error
 }
 
-// DbFeed 未登陆时刷视频
-func DbFeed(latestTime int64) ([]Video, int64) {
+// DbFeed 刷视频
+func DbFeed(latestTime int64, token string) ([]Video, int64) {
 
 	latestTime = time.Now().Unix()
 
 	var dbVideos []DbVideo
-	fmt.Println("latestTime=", latestTime)
+	//fmt.Println("latestTime=", latestTime)
 	ret := db.Table("videos").Where("timestamp < ?", latestTime).Order("timestamp desc").Limit(30).Find(&dbVideos) // 查找video信息
 	fmt.Println("dbVideos=", dbVideos)
 
@@ -556,13 +569,20 @@ func DbFeed(latestTime int64) ([]Video, int64) {
 		videoList[i].CommentCount = dbVideos[i].CommentCount
 		videoList[i].ThumbCount = dbVideos[i].ThumbCount
 
-		DbFindUserInfoById(dbVideos[i].CreateUid)
+		//DbFindUserInfoById(dbVideos[i].CreateUid)
 		//db.First(&author, dbVideos[i].CreateUid) // 视频发布的id
 
 		// var relation DbFollowing
 		// following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
 
 		videoList[i].Author = *DbFindUserInfoById(dbVideos[i].CreateUid)
+
+		if token != "" {
+			userLoginInfo := DbFindUserInfoByToken(token)
+			if userLoginInfo != nil {
+				videoList[i].IsFavorite = DbCheckIsFavorite(userLoginInfo.Id, dbVideos[i].CreateUid)
+			}
+		}
 	}
 
 	return videoList, dbVideos[videoLen-1].Timestamp
