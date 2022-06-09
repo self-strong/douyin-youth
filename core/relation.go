@@ -14,7 +14,7 @@ type UserListResponse struct {
 func RelationAction(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, CommentResponse{
@@ -61,7 +61,7 @@ func RelationAction(c *gin.Context) {
 func FollowList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, UserListResponse{
@@ -91,7 +91,7 @@ func FollowList(c *gin.Context) {
 func FollowerList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, UserListResponse{

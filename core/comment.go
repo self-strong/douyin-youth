@@ -19,7 +19,7 @@ type CommentListResponse struct {
 func CommentAction(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, CommentResponse{
@@ -92,7 +92,7 @@ func CommentAction(c *gin.Context) {
 func CommentList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserLoginInfo(token)
+	userLoginInfo := DbFindUserInfoByToken(token)
 
 	if userLoginInfo == nil {
 		c.JSON(http.StatusOK, CommentListResponse{
