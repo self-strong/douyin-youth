@@ -85,7 +85,7 @@ func PublishList(c *gin.Context) {
 		c.JSON(http.StatusOK, VideoListResponse{
 			Response: Response{
 				StatusCode: 1,
-				StatusMsg:  "User doesn't log in",
+				StatusMsg:  "User doesn't log in or existed",
 			},
 			VideoList: nil,
 		})
@@ -103,7 +103,7 @@ func PublishList(c *gin.Context) {
 		c.JSON(http.StatusOK, VideoListResponse{
 			Response: Response{
 				StatusCode: 1,
-				StatusMsg:  "user doesn't publish any videos!",
+				StatusMsg:  "User doesn't publish any videos!",
 			},
 			VideoList: nil,
 		})

@@ -86,6 +86,9 @@ type UserLoginInfo struct {
 	UserName string
 }
 
+// LoginInfo 模拟用户登录时的Token和用户信息
+var LoginInfo map[string]UserLoginInfo
+
 // DbInsertVideoInfo 向数据库中插入用户发布的video记录
 func DbInsertVideoInfo(uId int64, title, fileName, coverName string) error {
 	playUrl := "http://192.168.1.4:8080/douyin/publish/video/?videoName=" + fileName
@@ -101,9 +104,6 @@ func DbInsertVideoInfo(uId int64, title, fileName, coverName string) error {
 	result := db.Create(&videoInfo)
 	return result.Error
 }
-
-// LoginInfo 模拟用户登录时的Token和用户信息
-var LoginInfo map[string]UserLoginInfo
 
 // DbFindUserInfoByToken 根据Token获取登录用户的信息
 func DbFindUserInfoByToken(token string) *UserLoginInfo {
@@ -131,7 +131,7 @@ func DbCheckIsFavorite(uId, vId int64) bool {
 	return true
 }
 
-// DbFindVideoList 获取发布视频列表 是不是可以利用缓存的思想来优化以下
+// DbFindVideoList 获取发布视频列表
 func DbFindVideoList(user *User) []Video {
 	var dbVideos []DbVideo
 	ret := db.Table("videos").Where("create_uid = ?", user.Uid).Find(&dbVideos)
@@ -148,7 +148,6 @@ func DbFindVideoList(user *User) []Video {
 		videos[i].Id = dbVideos[i].Id
 		videos[i].CommentCount = dbVideos[i].CommentCount
 		videos[i].ThumbCount = dbVideos[i].ThumbCount
-
 		videos[i].IsFavorite = DbCheckIsFavorite(user.Uid, dbVideos[i].Id)
 	}
 	return videos
@@ -161,10 +160,6 @@ func DbFindUserInfoById(uId int64) *User {
 	if ret.RowsAffected == 0 {
 		return nil
 	}
-	//db.First(&dbUser, uId)
-	//if dbUser.Id == 0 {
-	//	return nil
-	//}
 	var user User
 	user.Uid = dbUser.Id
 	user.Username = dbUser.Name
@@ -172,10 +167,14 @@ func DbFindUserInfoById(uId int64) *User {
 	user.Following = dbUser.FanCount
 	user.IsFollow = false // 这需要查表z
 	return &user
-	// 判断用户是否存在
 }
 
-//func DbCheckIsFollow()
+// DbCheckIsFollow 检查uid是否follow fid
+func DbCheckIsFollow(uId, fId int64) bool {
+	var dbFollowing DbFollowing
+	ret := db.Table("followings").Where("fans_id = ? and idol_id = ?", uId, fId).First(dbFollowing)
+	return ret.RowsAffected == 0
+}
 
 // DbFindUserInfoByName 根据username查找用户信息
 func DbFindUserInfoByName(username string) *User {
@@ -184,9 +183,6 @@ func DbFindUserInfoByName(username string) *User {
 	if ret.RowsAffected == 0 {
 		return nil
 	}
-	//if dbUser.Id == 0 {
-	//	return nil
-	//}
 	var user User
 	user.Uid = dbUser.Id
 	user.Username = dbUser.Name
@@ -204,7 +200,6 @@ func DbCheckUser(username, password string) int64 {
 	if ret.RowsAffected == 0 {
 		return -1
 	}
-
 	if dbUser.Name == username && dbUser.Password == password {
 		return dbUser.Id
 	}
@@ -219,26 +214,13 @@ func DbConnect() error {
 	}
 	// 配置mysql,用户名、密码；
 	dsn := "root:wb20010115@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
-	// db, err := gorm.Open(mysql.New(mysql.Config{
-	// 	DSN:                       dsn,
-	// 	DefaultStringSize:         256,   // string 类型字段的默认长度
-	// 	DisableDatetimePrecision:  true,  // 禁用 datetime 精度，MySQL 5.6 之前的数据库不支持
-	// 	DontSupportRenameIndex:    true,  // 重命名索引时采用删除并新建的方式，MySQL 5.7 之前的数据库和 MariaDB 不支持重命名索引
-	// 	DontSupportRenameColumn:   true,  // 用 `change` 重命名列，MySQL 8 之前的数据库和 MariaDB 不支持重命名列
-	// 	SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
-	// }), &gorm.Config{})
 	var err error
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
-
 	if err != nil {
 		return err
 	}
-
 	LoginInfo = map[string]UserLoginInfo{} // 初始化登录信息表
-
 	return nil
-	// 自动迁移创建表格
-	// err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
 }
 
 // DbFavoriteAction Thumb Up, tx enabled
@@ -562,35 +544,22 @@ func DbFeed(latestTime int64, token string) ([]Video, int64) {
 	latestTime = time.Now().Unix()
 
 	var dbVideos []DbVideo
-	//fmt.Println("latestTime=", latestTime)
 	ret := db.Table("videos").Where("timestamp < ?", latestTime).Order("timestamp desc").Limit(30).Find(&dbVideos) // 查找video信息
-	fmt.Println("dbVideos=", dbVideos)
-
 	if ret.RowsAffected == 0 {
 		return nil, -1
 	}
 
 	videoLen := len(dbVideos)
 	videoList := make([]Video, videoLen)
-
 	for i := 0; i < len(dbVideos); i++ {
-
 		videoList[i].Id = dbVideos[i].Id
 		videoList[i].Title = dbVideos[i].Title
 		videoList[i].PlayUrl = dbVideos[i].PlayUrl
 		videoList[i].CoverUrl = dbVideos[i].CoverUrl
 		videoList[i].CommentCount = dbVideos[i].CommentCount
 		videoList[i].ThumbCount = dbVideos[i].ThumbCount
-
-		//DbFindUserInfoById(dbVideos[i].CreateUid)
-		//db.First(&author, dbVideos[i].CreateUid) // 视频发布的id
-
-		// var relation DbFollowing
-		// following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
-
 		videoList[i].Author = *DbFindUserInfoById(dbVideos[i].CreateUid)
-
-		if token != "" {
+		if token != "" { // 获取用户信息
 			userLoginInfo := DbFindUserInfoByToken(token)
 			if userLoginInfo != nil {
 				videoList[i].IsFavorite = DbCheckIsFavorite(userLoginInfo.Id, dbVideos[i].CreateUid)

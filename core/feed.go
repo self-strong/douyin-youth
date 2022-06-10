@@ -13,9 +13,9 @@ import (
 // HttpContentType 文件类型
 var HttpContentType = map[string]string{
 	".avi":  "video/avi",
-	".mp3":  "   audio/mp3",
+	".mp3":  "audio/mp3",
 	".mp4":  "video/mp4",
-	".wmv":  "   video/x-ms-wmv",
+	".wmv":  "video/x-ms-wmv",
 	".asf":  "video/x-ms-asf",
 	".rm":   "application/vnd.rn-realmedia",
 	".rmvb": "application/vnd.rn-realmedia-vbr",
@@ -40,7 +40,7 @@ func Feed(c *gin.Context) {
 	if videoList == nil {
 		c.JSON(http.StatusOK, FeedResponse{
 			Response: Response{StatusCode: 1,
-				StatusMsg: "no videos",
+				StatusMsg: "No videos available",
 			},
 		})
 	} else {
