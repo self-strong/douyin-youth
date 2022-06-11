@@ -1,9 +1,11 @@
 package core
 
 import (
-	"github.com/gin-gonic/gin"
+	"douyin/pkg/jwt"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 type UserListResponse struct {
@@ -14,9 +16,11 @@ type UserListResponse struct {
 func RelationAction(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, CommentResponse{
 			Response: Response{StatusCode: 1, StatusMsg: "User not Logged in or Not Exist"},
 			Comment:  Comment{},
@@ -33,15 +37,15 @@ func RelationAction(c *gin.Context) {
 
 	toIdInt, _ := strconv.ParseInt(toId, 10, 64)
 
-	if userLoginInfo.Id == toIdInt {
+	if user.Uid == toIdInt {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "can not follow yourself"})
 		return
 	}
 	var result error
 	if actionType == "1" {
-		result = DbFollowAction(userLoginInfo.Id, toIdInt)
+		result = DbFollowAction(user.Uid, toIdInt)
 	} else if actionType == "2" {
-		result = DbUnFollowAction(userLoginInfo.Id, toIdInt)
+		result = DbUnFollowAction(user.Uid, toIdInt)
 	} else {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "Illegal Parameter"})
 		return
@@ -61,9 +65,11 @@ func RelationAction(c *gin.Context) {
 func FollowList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, UserListResponse{
 			Response: Response{StatusCode: 1, StatusMsg: "User not Logged in or Not Exist"},
 			UserList: nil,
@@ -81,7 +87,7 @@ func FollowList(c *gin.Context) {
 	}
 
 	userId, _ := strconv.ParseInt(userIdStr, 10, 64)
-	followList := DbFollowList(userId, userLoginInfo.Id)
+	followList := DbFollowList(userId, user.Uid)
 	c.JSON(http.StatusOK, UserListResponse{
 		Response: Response{StatusCode: 0, StatusMsg: "Query succeeded"},
 		UserList: followList,
@@ -91,9 +97,11 @@ func FollowList(c *gin.Context) {
 func FollowerList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, UserListResponse{
 			Response: Response{StatusCode: 1, StatusMsg: "User not Logged in or Not Exist"},
 			UserList: nil,
@@ -111,7 +119,7 @@ func FollowerList(c *gin.Context) {
 	}
 
 	userId, _ := strconv.ParseInt(userIdStr, 10, 64)
-	followerList := DbFollowerList(userId, userLoginInfo.Id)
+	followerList := DbFollowerList(userId, user.Uid)
 	c.JSON(http.StatusOK, UserListResponse{
 		Response: Response{StatusCode: 0, StatusMsg: "Query succeeded"},
 		UserList: followerList,

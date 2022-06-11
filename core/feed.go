@@ -59,16 +59,6 @@ func Feed(c *gin.Context) {
 		})
 	}
 
-	//if userLoginInfo == nil {
-	//
-	//} else {
-	//	videoList := DbFeedWithLogin(userLoginInfo.Id)
-	//	c.JSON(http.StatusOK, FeedResponse{
-	//		Response:  Response{StatusCode: 0, StatusMsg: "Successful!"},
-	//		VideoList: videoList,
-	//		NextTime:  time.Now().Unix(),
-	//	})
-	//}
 }
 
 // GetVideo 获取视频

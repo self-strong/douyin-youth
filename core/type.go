@@ -11,6 +11,7 @@ type Response struct {
 type User struct {
 	Uid       int64  `json:"id,omitempty"`
 	Username  string `json:"name,omitempty"`
+	Password  string `json:"password,omitempty"`
 	Follow    int64  `json:"follow_count,omitempty"`
 	Following int64  `json:"follower_count,omitempty"`
 	IsFollow  bool   `json:"is_follow,omitempty"`

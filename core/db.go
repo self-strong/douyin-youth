@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -88,8 +89,8 @@ type UserLoginInfo struct {
 
 // DbInsertVideoInfo 向数据库中插入用户发布的video记录
 func DbInsertVideoInfo(uId int64, title, fileName, coverName string) error {
-	playUrl := "http://192.168.1.4:8080/douyin/publish/video/?videoName=" + fileName
-	coverUrl := "http://192.168.1.4:8080/douyin/publish/cover/?coverName=" + coverName
+	playUrl := "http://192.168.10.3:8080/douyin/publish/video/?videoName=" + fileName
+	coverUrl := "http://192.168.10.3:8080/douyin/publish/cover/?coverName=" + coverName
 	// 可不可以将数据库插入请求存下来，待缓存区满之后再批量插入
 	videoInfo := DbVideo{
 		Title:     title,
@@ -176,6 +177,7 @@ func DbFindUserInfoByName(username string) *User {
 	//}
 	var user User
 	user.Uid = dbUser.Id
+	user.Password = dbUser.Password
 	user.Username = dbUser.Name
 	user.Follow = dbUser.FollowCount
 	user.Following = dbUser.FanCount
@@ -188,13 +190,17 @@ func DbFindUserInfoByName(username string) *User {
 func DbCheckUser(username, password string) int64 {
 	var dbUser DbUser
 	ret := db.Table("users").Where("name = ?", username).First(&dbUser)
+
 	if ret.RowsAffected == 0 {
 		return -1
 	}
 
-	if dbUser.Name == username && dbUser.Password == password {
+	err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password))
+	//没有错误则密码匹配
+	if err == nil {
 		return dbUser.Id
 	}
+
 	return 0
 }
 
@@ -205,7 +211,7 @@ func DbConnect() error {
 		return nil
 	}
 	// 配置mysql,用户名、密码；
-	dsn := "root:wb20010115@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:123456@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
 	// db, err := gorm.Open(mysql.New(mysql.Config{
 	// 	DSN:                       dsn,
 	// 	DefaultStringSize:         256,   // string 类型字段的默认长度
@@ -567,44 +573,3 @@ func DbFeed(latestTime int64) ([]Video, int64) {
 
 	return videoList, dbVideos[videoLen-1].Timestamp
 }
-
-// // DbFeedWithLogin 未登陆时发布视频
-// func DbFeedWithLogin(uId int64) []Video {
-// 	// var video_list []Video
-
-// 	tb := db.Table("videos")
-
-// 	var videos []DbVideo
-
-// 	tb.Limit(30).Order("timestamp desc").Find(&videos) // 查找video信息
-
-// 	videoList := make([]Video, len(videos))
-
-// 	for i := 0; i < len(videos); i++ {
-// 		// var dbVideo DbVideo
-// 		dbVideo := videos[i]
-
-// 		videoList[i].Id = dbVideo.Id
-// 		//videoList[i].Title = dbVideo.Title
-// 		videoList[i].PlayUrl = dbVideo.PlayUrl
-// 		videoList[i].CoverUrl = dbVideo.CoverUrl
-// 		videoList[i].CommentCount = dbVideo.CommentCount
-// 		videoList[i].ThumbCount = dbVideo.ThumbCount
-
-// 		var author DbUser
-// 		db.First(&author, dbVideo.CreateUid) // 视频发布的id
-
-// 		var relation DbFollowing
-// 		following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
-
-// 		videoList[i].Author = User{
-// 			Uid:       author.Id,
-// 			Username:  author.Name,
-// 			Follow:    author.FanCount,
-// 			Following: author.FollowCount,
-// 			IsFollow:  following.RowsAffected > 0,
-// 		}
-// 	}
-
-// 	return videoList
-// }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"douyin/pkg/jwt"
 	"fmt"
 	"net/http"
 	"os"
@@ -22,9 +23,12 @@ func PublishAction(c *gin.Context) {
 	title := c.PostForm("title") // 获取title
 
 	// 根据token获取用户信息
-	userLoginInfo := DbFindUserInfoByToken(token)
+	//userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, err := jwt.ParseToken(token)
+
+	user := DbFindUserInfoByName(Myclaims.Username)
 	// 返回用户不存在
-	if userLoginInfo == nil {
+	if user == nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "User doesn't log in"})
 		return
 	}
@@ -69,7 +73,7 @@ func PublishAction(c *gin.Context) {
 	}
 
 	// 存入数据库
-	if err := DbInsertVideoInfo(userLoginInfo.Id, title, fileName, coverName); err != nil {
+	if err := DbInsertVideoInfo(user.Uid, title, fileName, coverName); err != nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: err.Error()})
 		if err := os.Remove(videoPath); err != nil {
 			fmt.Println("删除文件", videoPath, "失败")
@@ -87,10 +91,15 @@ func PublishAction(c *gin.Context) {
 // PublishList 获取发布视频列表
 func PublishList(c *gin.Context) {
 	uIdStr := c.Query("user_id") // 获取用户ID
-	token := c.Query("token")    // 用户登录token
+	//token := c.Query("token")    // 用户登录token
+
+	uId, _ := strconv.ParseInt(uIdStr, 10, 64)
+
+	// 根据用户ID获取用户信息
+	user := DbFindUserInfoById(uId)
 
 	// 检查token
-	if DbFindUserInfoByToken(token) == nil {
+	if user == nil {
 		c.JSON(http.StatusOK, VideoListResponse{
 			Response: Response{
 				StatusCode: 1,
@@ -101,9 +110,8 @@ func PublishList(c *gin.Context) {
 		return
 	}
 
-	uId, _ := strconv.ParseInt(uIdStr, 10, 64)
-	// 根据用户ID获取用户信息
-	user := DbFindUserInfoById(uId)
+	//uId, _ := strconv.ParseInt(uIdStr, 10, 64)
+
 	// 根据用户ID获取投稿视频
 	videoList := DbFindVideoList(user)
 
