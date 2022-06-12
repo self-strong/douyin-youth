@@ -173,8 +173,8 @@ func UserInfo(c *gin.Context) {
 			User:     User{},
 		})
 	} else {
-
-		//user := DbFindUserInfoById(uId)
+    
+		user.IsFollow = DbCheckIsFollow(user.Uid, uId)
 		c.JSON(http.StatusOK, UserResponse{
 			Response: Response{StatusCode: 0, StatusMsg: "Successful"},
 			User:     *user,

@@ -34,3 +34,14 @@ type Comment struct {
 	Content    string `json:"content"`
 	CreateDate string `json:"create_date"`
 }
+
+type VideoListResponse struct {
+	Response
+	VideoList []Video `json:"video_list,omitempty"`
+}
+
+type FeedResponse struct {
+	Response
+	VideoList []Video `json:"video_list,omitempty"`
+	NextTime  int64   `json:"next_time,omitempty"`
+}

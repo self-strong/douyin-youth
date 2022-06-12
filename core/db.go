@@ -87,6 +87,9 @@ type UserLoginInfo struct {
 	UserName string
 }
 
+// LoginInfo 模拟用户登录时的Token和用户信息
+var LoginInfo map[string]UserLoginInfo
+
 // DbInsertVideoInfo 向数据库中插入用户发布的video记录
 func DbInsertVideoInfo(uId int64, title, fileName, coverName string) error {
 	playUrl := "http://192.168.10.3:8080/douyin/publish/video/?videoName=" + fileName
@@ -103,9 +106,6 @@ func DbInsertVideoInfo(uId int64, title, fileName, coverName string) error {
 	return result.Error
 }
 
-// LoginInfo 模拟用户登录时的Token和用户信息
-var LoginInfo map[string]UserLoginInfo
-
 // DbFindUserInfoByToken 根据Token获取登录用户的信息
 func DbFindUserInfoByToken(token string) *UserLoginInfo {
 	// 在数据库表中查询登录用户的TOKEN
@@ -121,7 +121,18 @@ func DbInsertUserLoginInfo(id int64, userName, token string) {
 	LoginInfo[token] = UserLoginInfo{Id: id, UserName: userName}
 }
 
-// DbFindVideoList 获取发布视频列表 是不是可以利用缓存的思想来优化以下
+// DbCheckIsFavorite 检查视频vId是不是uId的喜欢视频
+func DbCheckIsFavorite(uId, vId int64) bool {
+	var thumb DbThumb
+	ret := db.Table("thumbs").Where("uid = ? and vId = ?", uId, vId).Find(&thumb)
+	fmt.Println(thumb)
+	if ret.RowsAffected == 0 {
+		return false
+	}
+	return true
+}
+
+// DbFindVideoList 获取发布视频列表
 func DbFindVideoList(user *User) []Video {
 	var dbVideos []DbVideo
 	ret := db.Table("videos").Where("create_uid = ?", user.Uid).Find(&dbVideos)
@@ -132,14 +143,13 @@ func DbFindVideoList(user *User) []Video {
 	videos := make([]Video, len(dbVideos))
 	for i := 0; i < len(dbVideos); i++ {
 		videos[i].Author = *user
-		// 恢复Title的原名
-		//videos[i].Title = dbVideos[i].Title
+		videos[i].Title = dbVideos[i].Title
 		videos[i].PlayUrl = dbVideos[i].PlayUrl
 		videos[i].CoverUrl = dbVideos[i].CoverUrl
 		videos[i].Id = dbVideos[i].Id
 		videos[i].CommentCount = dbVideos[i].CommentCount
 		videos[i].ThumbCount = dbVideos[i].ThumbCount
-		videos[i].IsFavorite = false // 必须弄成false ?
+		videos[i].IsFavorite = DbCheckIsFavorite(user.Uid, dbVideos[i].Id)
 	}
 	return videos
 }
@@ -151,10 +161,6 @@ func DbFindUserInfoById(uId int64) *User {
 	if ret.RowsAffected == 0 {
 		return nil
 	}
-	//db.First(&dbUser, uId)
-	//if dbUser.Id == 0 {
-	//	return nil
-	//}
 	var user User
 	user.Uid = dbUser.Id
 	user.Username = dbUser.Name
@@ -162,7 +168,13 @@ func DbFindUserInfoById(uId int64) *User {
 	user.Following = dbUser.FanCount
 	user.IsFollow = false // 这需要查表z
 	return &user
-	// 判断用户是否存在
+}
+
+// DbCheckIsFollow 检查uid是否follow fid
+func DbCheckIsFollow(uId, fId int64) bool {
+	var dbFollowing DbFollowing
+	ret := db.Table("followings").Where("fans_id = ? and idol_id = ?", uId, fId).First(dbFollowing)
+	return ret.RowsAffected == 0
 }
 
 // DbFindUserInfoByName 根据username查找用户信息
@@ -172,9 +184,6 @@ func DbFindUserInfoByName(username string) *User {
 	if ret.RowsAffected == 0 {
 		return nil
 	}
-	//if dbUser.Id == 0 {
-	//	return nil
-	//}
 	var user User
 	user.Uid = dbUser.Id
 	user.Password = dbUser.Password
@@ -195,12 +204,12 @@ func DbCheckUser(username, password string) int64 {
 		return -1
 	}
 
+
 	err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password))
 	//没有错误则密码匹配
 	if err == nil {
 		return dbUser.Id
 	}
-
 	return 0
 }
 
@@ -211,6 +220,7 @@ func DbConnect() error {
 		return nil
 	}
 	// 配置mysql,用户名、密码；
+
 	dsn := "root:123456@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
 	// db, err := gorm.Open(mysql.New(mysql.Config{
 	// 	DSN:                       dsn,
@@ -220,23 +230,29 @@ func DbConnect() error {
 	// 	DontSupportRenameColumn:   true,  // 用 `change` 重命名列，MySQL 8 之前的数据库和 MariaDB 不支持重命名列
 	// 	SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
 	// }), &gorm.Config{})
+
 	var err error
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
-
 	if err != nil {
 		return err
 	}
-
 	LoginInfo = map[string]UserLoginInfo{} // 初始化登录信息表
-
 	return nil
-	// 自动迁移创建表格
-	// err = db.AutoMigrate(&User{}, &Video{}, &Thumb{}, &Comment{}, &Following{})
 }
 
-// DbFavoriteAction Thumb Up
+// DbFavoriteAction Thumb Up, tx enabled
 func DbFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
+
+	// check validity
+	thumbCheck := DbThumb{Uid: uId, Vid: vId}
+	checkResult := tx.First(&thumbCheck)
+	if checkResult.RowsAffected != 0 {
+		tx.Rollback()
+		return errors.New("repeated action")
+	}
+
+	// create record
 	thumbInfo := DbThumb{Uid: uId, Vid: vId, Timestamp: time.Now().String()}
 	result := tx.Create(&thumbInfo)
 	if result.Error != nil {
@@ -244,8 +260,9 @@ func DbFavoriteAction(uId int64, vId int64) error {
 		return result.Error
 	}
 
+	// update video data
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -254,9 +271,10 @@ func DbFavoriteAction(uId int64, vId int64) error {
 	return tx.Commit().Error
 }
 
-// DbUnFavoriteAction Cancel Thumb Up
+// DbUnFavoriteAction Cancel Thumb Up, tx enabled
 func DbUnFavoriteAction(uId int64, vId int64) error {
 	tx := db.Begin()
+
 	thumbInfo := DbThumb{Uid: uId, Vid: vId}
 	result := tx.Where("Uid=?", uId).Where("vid=?", vId).Delete(&thumbInfo)
 	if result.Error != nil {
@@ -265,7 +283,7 @@ func DbUnFavoriteAction(uId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("ThumbCount", gorm.Expr("thumb_count - ?", 1))
+	result = tx.Model(&dbVideo).Update("thumb_count", gorm.Expr("thumb_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -293,6 +311,8 @@ func DbFavoriteList(uId int64) []Video {
 		favoriteVideos[i].CoverUrl = dbVideo.CoverUrl
 		favoriteVideos[i].CommentCount = dbVideo.CommentCount
 		favoriteVideos[i].ThumbCount = dbVideo.ThumbCount
+
+		favoriteVideos[i].IsFavorite = DbCheckIsFavorite(uId, dbVideo.Id)
 
 		var author DbUser
 		db.First(&author, dbVideo.CreateUid)
@@ -326,7 +346,7 @@ func DbPostComment(uId int64, vId int64, text string) (error, Comment) {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result = tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count + ?", 1))
+	result = tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count + ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error, Comment{}
@@ -364,7 +384,7 @@ func DbDeleteComment(cmId int64, vId int64) error {
 	}
 
 	dbVideo := DbVideo{Id: vId}
-	result := tx.Model(&dbVideo).Update("CommentCount", gorm.Expr("comment_count - ?", 1))
+	result := tx.Model(&dbVideo).Update("comment_count", gorm.Expr("comment_count - ?", 1))
 	if result.Error != nil {
 		tx.Rollback()
 		return result.Error
@@ -427,13 +447,13 @@ func DbFollowAction(uId int64, toId int64) error {
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("fan_count", gorm.Expr("fan_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("follow_count", gorm.Expr("follow_count + ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -454,13 +474,13 @@ func DbUnFollowAction(uId int64, toId int64) error {
 	}
 
 	target := DbUser{Id: toId}
-	if err := tx.Model(&target).Update("FanCount", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
+	if err := tx.Model(&target).Update("fan_count", gorm.Expr("fan_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
 	self := DbUser{Id: uId}
-	if err := tx.Model(&self).Update("FollowCount", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
+	if err := tx.Model(&self).Update("follow_count", gorm.Expr("follow_count - ?", 1)).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -536,39 +556,32 @@ func DbRegister(username, password string) (int64, error) {
 	return dbUser.Id, ret.Error
 }
 
-// DbFeed 未登陆时刷视频
-func DbFeed(latestTime int64) ([]Video, int64) {
-
+// DbFeed 刷视频
+func DbFeed(latestTime int64, token string) ([]Video, int64) {
 	latestTime = time.Now().Unix()
 
 	var dbVideos []DbVideo
-	fmt.Println("latestTime=", latestTime)
 	ret := db.Table("videos").Where("timestamp < ?", latestTime).Order("timestamp desc").Limit(30).Find(&dbVideos) // 查找video信息
-	fmt.Println("dbVideos=", dbVideos)
-
 	if ret.RowsAffected == 0 {
 		return nil, -1
 	}
 
 	videoLen := len(dbVideos)
 	videoList := make([]Video, videoLen)
-
 	for i := 0; i < len(dbVideos); i++ {
-
 		videoList[i].Id = dbVideos[i].Id
 		videoList[i].Title = dbVideos[i].Title
 		videoList[i].PlayUrl = dbVideos[i].PlayUrl
 		videoList[i].CoverUrl = dbVideos[i].CoverUrl
 		videoList[i].CommentCount = dbVideos[i].CommentCount
 		videoList[i].ThumbCount = dbVideos[i].ThumbCount
-
-		DbFindUserInfoById(dbVideos[i].CreateUid)
-		//db.First(&author, dbVideos[i].CreateUid) // 视频发布的id
-
-		// var relation DbFollowing
-		// following := db.Where("FansId = ? AND IdolId = ?", uId, author.Id).First(&relation)
-
 		videoList[i].Author = *DbFindUserInfoById(dbVideos[i].CreateUid)
+		if token != "" { // 获取用户信息
+			userLoginInfo := DbFindUserInfoByToken(token)
+			if userLoginInfo != nil {
+				videoList[i].IsFavorite = DbCheckIsFavorite(userLoginInfo.Id, dbVideos[i].CreateUid)
+			}
+		}
 	}
 
 	return videoList, dbVideos[videoLen-1].Timestamp
