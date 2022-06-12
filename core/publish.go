@@ -18,7 +18,6 @@ func PublishAction(c *gin.Context) {
 	title := c.PostForm("title") // 获取title
 
 	// 根据token获取用户信息
-	//userLoginInfo := DbFindUserInfoByToken(token)
 	Myclaims, err := jwt.ParseToken(token)
 
 	user := DbFindUserInfoByName(Myclaims.Username)
@@ -82,26 +81,37 @@ func PublishAction(c *gin.Context) {
 // PublishList 获取发布视频列表
 func PublishList(c *gin.Context) {
 	uIdStr := c.Query("user_id") // 获取用户ID
-	//token := c.Query("token")    // 用户登录token
+	token := c.Query("token")    // 用户登录token
 
 	uId, _ := strconv.ParseInt(uIdStr, 10, 64)
 
 	// 根据用户ID获取用户信息
 	user := DbFindUserInfoById(uId)
 
-	// 检查token
+	// 检查user
 	if user == nil {
 		c.JSON(http.StatusOK, VideoListResponse{
 			Response: Response{
 				StatusCode: 1,
-				StatusMsg:  "User doesn't log in or existed",
+				StatusMsg:  "User doesn't exist",
 			},
 			VideoList: nil,
 		})
 		return
 	}
 
-	//uId, _ := strconv.ParseInt(uIdStr, 10, 64)
+	// 根据token获取登录用户id
+	userLoginInfo := DbFindUserInfoByToken(token)
+	if userLoginInfo == nil {
+		c.JSON(http.StatusOK, VideoListResponse{
+			Response: Response{
+				StatusCode: 1,
+				StatusMsg:  "User doesn't log in",
+			},
+			VideoList: nil,
+		})
+		return
+	}
 
 	// 根据用户ID获取投稿视频
 	videoList := DbFindVideoList(user)
@@ -116,6 +126,11 @@ func PublishList(c *gin.Context) {
 			VideoList: nil,
 		})
 		return
+	}
+
+	// 判断该投稿视频是否是登录用户的喜爱视频
+	for i := 0; i < len(videoList); i++ {
+		videoList[i].IsFavorite = DbCheckIsFavorite(userLoginInfo.Id, videoList[i].Id)
 	}
 
 	// 返回发布成功的报文

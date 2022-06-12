@@ -132,7 +132,7 @@ func DbCheckIsFavorite(uId, vId int64) bool {
 	return true
 }
 
-// DbFindVideoList 获取发布视频列表
+// DbFindVideoList 获取用户的发布视频列表
 func DbFindVideoList(user *User) []Video {
 	var dbVideos []DbVideo
 	ret := db.Table("videos").Where("create_uid = ?", user.Uid).Find(&dbVideos)
@@ -149,7 +149,7 @@ func DbFindVideoList(user *User) []Video {
 		videos[i].Id = dbVideos[i].Id
 		videos[i].CommentCount = dbVideos[i].CommentCount
 		videos[i].ThumbCount = dbVideos[i].ThumbCount
-		videos[i].IsFavorite = DbCheckIsFavorite(user.Uid, dbVideos[i].Id)
+		videos[i].IsFavorite = false
 	}
 	return videos
 }
@@ -204,7 +204,6 @@ func DbCheckUser(username, password string) int64 {
 		return -1
 	}
 
-
 	err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password))
 	//没有错误则密码匹配
 	if err == nil {
@@ -222,17 +221,12 @@ func DbConnect() error {
 	// 配置mysql,用户名、密码；
 
 	dsn := "root:123456@tcp(127.0.0.1:3306)/douyin?charset=utf8mb4&parseTime=True&loc=Local"
-	// db, err := gorm.Open(mysql.New(mysql.Config{
-	// 	DSN:                       dsn,
-	// 	DefaultStringSize:         256,   // string 类型字段的默认长度
-	// 	DisableDatetimePrecision:  true,  // 禁用 datetime 精度，MySQL 5.6 之前的数据库不支持
-	// 	DontSupportRenameIndex:    true,  // 重命名索引时采用删除并新建的方式，MySQL 5.7 之前的数据库和 MariaDB 不支持重命名索引
-	// 	DontSupportRenameColumn:   true,  // 用 `change` 重命名列，MySQL 8 之前的数据库和 MariaDB 不支持重命名列
-	// 	SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
-	// }), &gorm.Config{})
 
 	var err error
-	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	// 执行任何 SQL 时都创建并缓存预编译语句，可以提高后续的调用速度
+	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+		PrepareStmt: true,
+	})
 	if err != nil {
 		return err
 	}
@@ -545,14 +539,9 @@ func DbFollowerList(uId int64, opId int64) []User {
 
 // DbRegister 注册
 func DbRegister(username, password string) (int64, error) {
-
-	//tb := db.Table("users")
-	// q := query.Use(db).User
 	// //插入姓名
 	dbUser := DbUser{Name: username, Password: password, FollowCount: 0, FanCount: 0}
 	ret := db.Table("users").Create(&dbUser)
-	// err = q.WithContext(context.Background()).Create(&user)
-
 	return dbUser.Id, ret.Error
 }
 
