@@ -1,6 +1,7 @@
 package core
 
 import (
+	"douyin/pkg/jwt"
 	"net/http"
 	"strconv"
 
@@ -19,9 +20,11 @@ type CommentListResponse struct {
 func CommentAction(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, CommentResponse{
 			Response: Response{StatusCode: 1, StatusMsg: "User not Logged in or Not Exist"},
 			Comment:  Comment{},
@@ -51,7 +54,7 @@ func CommentAction(c *gin.Context) {
 			return
 		}
 		var comment Comment
-		result, comment = DbPostComment(userLoginInfo.Id, vID, content)
+		result, comment = DbPostComment(user.Uid, vID, content)
 		if result == nil {
 			c.JSON(http.StatusOK, CommentResponse{
 				Response: Response{StatusCode: 0, StatusMsg: "Comment successfully"},
@@ -92,9 +95,11 @@ func CommentAction(c *gin.Context) {
 func CommentList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, CommentListResponse{
 			Response:    Response{StatusCode: 1, StatusMsg: "User not Logged in or Not Exist"},
 			CommentList: nil,
@@ -112,7 +117,7 @@ func CommentList(c *gin.Context) {
 	}
 
 	vID, _ := strconv.ParseInt(videoId, 10, 64)
-	comments := DbCommentList(userLoginInfo.Id, vID)
+	comments := DbCommentList(user.Uid, vID)
 
 	c.JSON(http.StatusOK, CommentListResponse{
 		Response:    Response{StatusCode: 0, StatusMsg: "Query finished"},

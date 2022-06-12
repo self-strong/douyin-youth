@@ -1,6 +1,7 @@
 package core
 
 import (
+	"douyin/pkg/jwt"
 	"net/http"
 	"strconv"
 
@@ -10,9 +11,11 @@ import (
 func FavoriteAction(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "User Not Logged in or Not Exist"})
 		return
 	}
@@ -27,9 +30,9 @@ func FavoriteAction(c *gin.Context) {
 	vId, _ := strconv.ParseInt(videoId, 10, 64)
 	var result error
 	if actionType == "1" {
-		result = DbFavoriteAction(userLoginInfo.Id, vId)
+		result = DbFavoriteAction(user.Uid, vId)
 	} else if actionType == "2" {
-		result = DbUnFavoriteAction(userLoginInfo.Id, vId)
+		result = DbUnFavoriteAction(user.Uid, vId)
 	} else {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "Illegal parameter!"})
 		return
@@ -46,9 +49,11 @@ func FavoriteAction(c *gin.Context) {
 func FavoriteList(c *gin.Context) {
 	token := c.Query("token")
 
-	userLoginInfo := DbFindUserInfoByToken(token)
+	Myclaims, _ := jwt.ParseToken(token)
 
-	if userLoginInfo == nil {
+	user := DbFindUserInfoByName(Myclaims.Username)
+
+	if user == nil {
 		c.JSON(http.StatusOK, Response{StatusCode: 1, StatusMsg: "User Not Logged in or Not Exist"})
 		return
 	}
