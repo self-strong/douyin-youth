@@ -38,10 +38,3 @@ func GetVideoCover(videoPath string) (string, error) {
 	}
 	return filepath.Base(coverPath), nil
 }
-
-//http://localhost:8080/douyin/publish/video/?videoName=1_SVID_20220607_162459_1.mp4
-//http://localhost:8080/douyin/publish/cover/?coverName=1_SVID_20220607_162459_1.jpg
-//
-//http://localhost:8080/douyin/publish/video/?videoName=1_SVID_20220607_162459_1.mp4
-//
-//http://localhost:8080/douyin/publish/video/?videoName=1_Trim.mp4
