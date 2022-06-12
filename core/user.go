@@ -51,13 +51,6 @@ func Register(c *gin.Context) {
 			})
 			return
 		}
-		// newUser := User{
-		// 	Id:            user.Id,
-		// 	Name:          user.Name,
-		// 	FollowCount:   user.FollowCount,
-		// 	FollowerCount: user.FanCount,
-		// 	IsFollow:      false,
-		// }
 
 		// userLoginInfo更新
 		token, _ := jwt.GenToken(username)
@@ -71,58 +64,11 @@ func Register(c *gin.Context) {
 	}
 }
 
-// Login 使用用户名和密码登陆，返回用户id和token，进行页面信息显示
-// func Login(c *gin.Context) {
-// 	username := c.Query("username")
-// 	password := c.Query("password")
-
-// 	token := username + password
-
-// 	// 通过token进行登陆 ?
-// 	userLoginInfo := DbFindUserInfoByToken(token) // 根据token获取用户信息
-
-// 	if userLoginInfo != nil {
-// 		c.JSON(http.StatusOK, UserLoginResponse{
-// 			Response: Response{StatusCode: 0, StatusMsg: "Successful!"},
-// 			UserId:   userLoginInfo.Id,
-// 			Token:    token,
-// 		})
-// 	} else {
-// 		//查表，检查用户是否存在
-// 		fmt.Println(username, password, "++++++++++++++")
-// 		var ret = DbCheckUser(username, password)
-// 		if ret == -1 { // 用户不存在
-// 			c.JSON(http.StatusOK, UserLoginResponse{
-// 				Response: Response{StatusCode: 1, StatusMsg: "User doesn't exist"},
-// 				UserId:   0,
-// 				Token:    "",
-// 			})
-// 		} else if ret == 0 { // 密码不正确
-// 			c.JSON(http.StatusOK, UserLoginResponse{
-// 				Response: Response{StatusCode: 2, StatusMsg: "Password Error"},
-// 				UserId:   0,
-// 				Token:    "",
-// 			})
-// 		} else {
-// 			DbInsertUserLoginInfo(ret, username, token)
-// 			c.JSON(http.StatusOK, UserLoginResponse{
-// 				Response: Response{StatusCode: 0, StatusMsg: "Login Successful!"},
-// 				UserId:   ret,
-// 				Token:    token,
-// 			})
-// 		}
-
-// 	}
-// }
 // 登录
 func Login(c *gin.Context) {
 	username := c.Query("username")
 	password := c.Query("password")
 
-	// token := username + password
-
-	// // 通过token进行登陆 ?
-	//userLoginInfo := DbFindUserInfoByToken(token) // 根据token获取用户信息
 	user := DbFindUserInfoByName(username)
 	token, _ := jwt.GenToken(username)
 	if user != nil {
@@ -173,7 +119,7 @@ func UserInfo(c *gin.Context) {
 			User:     User{},
 		})
 	} else {
-    
+
 		user.IsFollow = DbCheckIsFollow(user.Uid, uId)
 		c.JSON(http.StatusOK, UserResponse{
 			Response: Response{StatusCode: 0, StatusMsg: "Successful"},
